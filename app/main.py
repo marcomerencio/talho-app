@@ -24,6 +24,35 @@ DEFAULT_DB = {
     'suppliers': [
         {'id': 1, 'name': 'Fornecedor Exemplo', 'contact': '', 'notes': 'Editar ou apagar.'}
     ],
+    'stock': [],
+    'buy_items': [],
+    'clients': [],
+    'cash_state': {
+        'talho': {
+            'date': '',
+            'start': 100,
+            'inCash': 0,
+            'inMb': 0,
+            'inMbway': 0,
+            'inOther': 0,
+            'out': 0,
+            'obs': '',
+            'notes': {'500': 0, '200': 0, '100': 0, '50': 0, '20': 0, '10': 0, '5': 0},
+            'coins': {'2': 0, '1': 0, '0.5': 0, '0.2': 0, '0.1': 0, '0.05': 0, '0.02': 0, '0.01': 0}
+        },
+        'cong': {
+            'date': '',
+            'start': 100,
+            'inCash': 0,
+            'inMb': 0,
+            'inMbway': 0,
+            'inOther': 0,
+            'out': 0,
+            'obs': '',
+            'notes': {'500': 0, '200': 0, '100': 0, '50': 0, '20': 0, '10': 0, '5': 0},
+            'coins': {'2': 0, '1': 0, '0.5': 0, '0.2': 0, '0.1': 0, '0.05': 0, '0.02': 0, '0.01': 0}
+        }
+    },
     'next_ids': {
         'transaction': 1,
         'closure': 1,
