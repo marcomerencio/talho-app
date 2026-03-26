@@ -67,7 +67,11 @@
   color:#fff;
   box-shadow:0 12px 30px rgba(185,28,28,.25);
 }
-
+.login-logo img{
+  width:52px;
+  height:52px;
+  object-fit:contain;
+}
 .login-label{
   display:block;
   margin-bottom:8px;
@@ -141,12 +145,14 @@
 <body>
  <div id="loginScreen" class="login-wrap">
   <div class="login-card">
-    <div class="login-logo">🥩</div>
-    <div class="brand">Talho Caixa Pro</div>
+    <div class="login-logo">
+  <img src="/logo.png" alt="Logótipo do Talho">
+</div>
+    <div class="brand">GRUPO BOLHÃO</div>
     <div class="sub">Gestão profissional de caixa, stock, compras e clientes</div>
 
     <label class="login-label">Nome do talho</label>
-    <input class="login-input" id="loginUser" value="Talho Central">
+    <input class="login-input" id="loginUser" value="Bolhão Talho">
 
     <div style="height:12px"></div>
 
