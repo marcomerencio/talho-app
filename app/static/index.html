@@ -12,11 +12,94 @@
     *{box-sizing:border-box}
     body{margin:0;font-family:Arial,Helvetica,sans-serif;background:var(--bg);color:var(--text)}
     .hidden{display:none!important}
-    .login-wrap{min-height:100vh;display:grid;place-items:center;padding:24px}
-    .login-card,.card{background:var(--card);border:1px solid var(--line);border-radius:18px;box-shadow:0 1px 3px rgba(0,0,0,.06)}
-    .login-card{width:min(440px,100%);padding:28px}
-    .brand{font-size:28px;font-weight:700;color:var(--brand)}
-    .sub{color:var(--muted);margin:6px 0 20px}
+   .login-wrap{
+  min-height:100vh;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  padding:24px;
+  background:
+    radial-gradient(circle at top left, rgba(185,28,28,.18), transparent 30%),
+    radial-gradient(circle at bottom right, rgba(153,27,27,.22), transparent 28%),
+    linear-gradient(135deg, #0f172a, #111827 58%, #3f0d0d);
+}
+
+.login-card,.card{
+  background:var(--card);
+  border:1px solid var(--line);
+  border-radius:18px;
+  box-shadow:0 1px 3px rgba(0,0,0,.06);
+}
+
+.login-card{
+  width:min(460px,100%);
+  padding:34px 28px 28px;
+  border-radius:24px;
+  box-shadow:0 25px 60px rgba(0,0,0,.35);
+  background:rgba(255,255,255,.96);
+}
+
+.brand{
+  font-size:30px;
+  font-weight:700;
+  color:var(--brand);
+  text-align:center;
+  margin-bottom:8px;
+}
+
+.sub{
+  color:var(--muted);
+  margin:6px 0 20px;
+  text-align:center;
+  line-height:1.5;
+}
+
+.login-logo{
+  width:76px;
+  height:76px;
+  margin:0 auto 16px;
+  border-radius:20px;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  font-size:34px;
+  background:linear-gradient(135deg, #b91c1c, #7f1d1d);
+  color:#fff;
+  box-shadow:0 12px 30px rgba(185,28,28,.25);
+}
+
+.login-label{
+  display:block;
+  margin-bottom:8px;
+  font-weight:700;
+  color:#334155;
+}
+
+.login-input{
+  width:100%;
+  padding:13px 14px;
+  border:1px solid #cbd5e1;
+  border-radius:14px;
+  background:#fff;
+}
+
+.login-input.pin{
+  text-align:center;
+  font-size:24px;
+  letter-spacing:8px;
+}
+
+.login-error{
+  display:none;
+  margin-top:14px;
+  background:rgba(239,68,68,.12);
+  border:1px solid rgba(239,68,68,.25);
+  color:#991b1b;
+  padding:12px 14px;
+  border-radius:14px;
+  text-align:center;
+  font-size:14px;
+}
     input,select,button,textarea{font:inherit}
     input,select,textarea{width:100%;padding:11px 12px;border:1px solid #cbd5e1;border-radius:12px;background:#fff}
     button{cursor:pointer;border:none;border-radius:12px;padding:11px 15px;font-weight:700}
@@ -25,7 +108,7 @@
     .btn.sec{background:#e2e8f0;color:#172033}
     .app{display:grid;grid-template-columns:250px 1fr;min-height:100vh}
     .side{background:#111827;color:#fff;padding:20px}
-    .side .brand{color:#fff;font-size:24px}
+    .side .brand{color:#fff;font-size:24px;text-align:left;margin-bottom:0}
     .menu button{width:100%;text-align:left;background:transparent;color:#fff;border:1px solid rgba(255,255,255,.08);margin:0 0 10px;border-radius:12px;padding:12px 14px}
     .menu button.active,.menu button:hover{background:rgba(255,255,255,.08)}
     .main{padding:22px}
@@ -56,22 +139,29 @@
   </style>
 </head>
 <body>
-  <div id="loginScreen" class="login-wrap">
-    <div class="login-card">
-      <div class="brand">Talho Caixa Pro</div>
-      <div class="sub">App focada em fecho de caixa, encomendas, stock e clientes</div>
-      <label>Utilizador</label>
-      <input id="loginUser" value="admin">
-      <div style="height:10px"></div>
-      <label>Palavra-passe</label>
-      <input id="loginPass" type="password" value="1234">
-      <div class="actions">
-        <button class="btn" onclick="login()">Entrar</button>
-        <button class="btn sec" onclick="seedDemo()">Carregar demonstração</button>
-      </div>
-      <div class="footer-note">Login de demonstração: admin / 1234</div>
+ <div id="loginScreen" class="login-wrap">
+  <div class="login-card">
+    <div class="login-logo">🥩</div>
+    <div class="brand">Talho Caixa Pro</div>
+    <div class="sub">Gestão profissional de caixa, stock, compras e clientes</div>
+
+    <label class="login-label">Nome do talho</label>
+    <input class="login-input" id="loginUser" value="Talho Central">
+
+    <div style="height:12px"></div>
+
+    <label class="login-label">PIN</label>
+    <input class="login-input pin" id="loginPass" type="password" value="1234" maxlength="4" inputmode="numeric" placeholder="••••">
+
+    <div class="actions">
+      <button class="btn" onclick="login()">Entrar</button>
+      <button class="btn sec" onclick="seedDemo()">Carregar demonstração</button>
     </div>
+
+    <div id="loginError" class="login-error">PIN inválido. Tenta novamente.</div>
+    <div class="footer-note">Acesso reservado ao responsável de caixa</div>
   </div>
+</div>
 
   <div id="appScreen" class="app hidden">
     <aside class="side">
@@ -223,8 +313,6 @@
         </div>
       </section>
 
-      </section>
-
       <section id="stock" class="screen hidden">
         <div class="top"><div><div class="title">Stock</div><div class="muted">Produtos e alerta automático</div></div></div>
         <div class="card pad">
@@ -310,14 +398,18 @@ const coinValues = [2,1,0.5,0.2,0.1,0.05,0.02,0.01];
 function todayISO(){ return new Date().toISOString().slice(0,10); }
 
 function login(){
-  const u = document.getElementById('loginUser').value.trim();
-  const p = document.getElementById('loginPass').value;
-  if(u === 'admin' && p === '1234'){
+  const p = document.getElementById('loginPass').value.trim();
+  const errorBox = document.getElementById('loginError');
+
+  if(p === '1234'){
+    errorBox.style.display = 'none';
     document.getElementById('loginScreen').classList.add('hidden');
     document.getElementById('appScreen').classList.remove('hidden');
     initCashInputs();
     renderAll();
-  } else alert('Login inválido.');
+  } else {
+    errorBox.style.display = 'block';
+  }
 }
 function logout(){
   document.getElementById('appScreen').classList.add('hidden');
