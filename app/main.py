@@ -1,19 +1,16 @@
-from __future__ import annotations
 from flask import Flask, send_from_directory, request, jsonify, session
 import os
-import json
-from datetime import datetime, date
-from io import BytesIO
-from threading import Lock
-import zipfile
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 STATIC_DIR = os.path.join(BASE_DIR, 'static')
-DATA_DIR = os.path.join(BASE_DIR, 'data')
-DB_PATH = os.path.join(DATA_DIR, 'db.json')
-LOCK = Lock()
 
 app = Flask(__name__, static_folder=STATIC_DIR, static_url_path='')
+
+# 🔐 CHAVE SECRETA (para login/session)
+app.secret_key = os.environ.get('SECRET_KEY', 'muda-esta-chave')
+
+# 🔢 PIN da app (vem do Render)
+APP_PIN = os.environ.get('APP_PIN', '1234')
 app.secret_key = os.environ.get('SECRET_KEY', 'talho-secret-key-change-me')
 APP_PIN = os.environ.get('APP_PIN', '1234')
 
