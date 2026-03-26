@@ -1,16 +1,20 @@
-from flask import Flask, send_from_directory, request, jsonify, session
+from flask import Flask, send_from_directory, request, jsonify, session, send_file
 import os
+import json
+import threading
+import zipfile
+from io import BytesIO
+from datetime import date, datetime
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 STATIC_DIR = os.path.join(BASE_DIR, 'static')
+DATA_DIR = os.path.join(BASE_DIR, 'data')
+DB_PATH = os.path.join(DATA_DIR, 'db.json')
+LOCK = threading.Lock()
 
 app = Flask(__name__, static_folder=STATIC_DIR, static_url_path='')
 
-# 🔐 CHAVE SECRETA (para login/session)
-app.secret_key = os.environ.get('SECRET_KEY', 'muda-esta-chave')
-
-# 🔢 PIN da app (vem do Render)
-APP_PIN = os.environ.get('APP_PIN', '1234')
+# Segurança
 app.secret_key = os.environ.get('SECRET_KEY', 'talho-secret-key-change-me')
 APP_PIN = os.environ.get('APP_PIN', '1234')
 
@@ -84,26 +88,32 @@ def compute_summary(transactions: list[dict]) -> dict:
     expenses = 0.0
     other_entries = 0.0
     by_payment = {'dinheiro': 0.0, 'multibanco': 0.0, 'mbway': 0.0, 'outro': 0.0}
+
     for t in transactions:
         amount = parse_amount(t.get('amount', 0))
         ttype = t.get('type', 'sale')
         section = t.get('section', 'talho')
         payment = (t.get('payment_method') or 'dinheiro').lower()
+
         if ttype == 'sale':
             if section == 'congelados':
                 sales_congelados += amount
             else:
                 sales_talho += amount
+
             if payment not in by_payment:
                 payment = 'outro'
             by_payment[payment] += amount
+
         elif ttype == 'expense':
             expenses += amount
+
         elif ttype == 'entry':
             other_entries += amount
 
     total_sales = sales_talho + sales_congelados
     gross_cash_expected = by_payment['dinheiro'] + other_entries - expenses
+
     return {
         'sales_talho': round(sales_talho, 2),
         'sales_congelados': round(sales_congelados, 2),
@@ -144,10 +154,12 @@ def health():
 @app.route('/api/login', methods=['POST'])
 def login():
     payload = request.get_json(silent=True) or {}
-    pin = str(payload.get('pin', ''))
+    pin = str(payload.get('pin', '')).strip()
+
     if pin == APP_PIN:
         session['logged_in'] = True
         return jsonify({'ok': True})
+
     return jsonify({'ok': False, 'error': 'PIN inválido'}), 401
 
 
@@ -167,6 +179,7 @@ def summary():
     auth = require_login()
     if auth:
         return auth
+
     day = request.args.get('date') or today_iso()
     data = load_db()
     transactions = get_today_transactions(data, day)
@@ -180,14 +193,19 @@ def transactions():
     auth = require_login()
     if auth:
         return auth
+
     data = load_db()
+
     if request.method == 'GET':
         day = request.args.get('date') or today_iso()
-        tx = sorted(get_today_transactions(data, day), key=lambda x: x.get('created_at', ''), reverse=True)
+        tx = sorted(
+            get_today_transactions(data, day),
+            key=lambda x: x.get('created_at', ''),
+            reverse=True
+        )
         return jsonify(tx)
 
     payload = request.get_json(silent=True) or {}
-    ttype = payload.get('type', 'sale')
     amount = parse_amount(payload.get('amount', 0))
     if amount <= 0:
         return jsonify({'error': 'Valor inválido'}), 400
@@ -195,13 +213,14 @@ def transactions():
     tx = {
         'id': data['next_ids']['transaction'],
         'date': payload.get('date') or today_iso(),
-        'type': ttype,
+        'type': payload.get('type', 'sale'),
         'section': payload.get('section', 'talho'),
         'amount': amount,
         'payment_method': payload.get('payment_method', 'dinheiro'),
         'description': (payload.get('description') or '').strip(),
         'created_at': datetime.now().isoformat(timespec='seconds')
     }
+
     data['next_ids']['transaction'] += 1
     data['transactions'].append(tx)
     save_db(data)
@@ -213,11 +232,14 @@ def delete_transaction(tx_id: int):
     auth = require_login()
     if auth:
         return auth
+
     data = load_db()
     before = len(data['transactions'])
     data['transactions'] = [t for t in data['transactions'] if t.get('id') != tx_id]
+
     if len(data['transactions']) == before:
         return jsonify({'error': 'Movimento não encontrado'}), 404
+
     save_db(data)
     return jsonify({'ok': True})
 
@@ -227,7 +249,9 @@ def suppliers():
     auth = require_login()
     if auth:
         return auth
+
     data = load_db()
+
     if request.method == 'GET':
         return jsonify(data['suppliers'])
 
@@ -235,12 +259,14 @@ def suppliers():
     name = (payload.get('name') or '').strip()
     if not name:
         return jsonify({'error': 'Nome obrigatório'}), 400
+
     supplier = {
         'id': data['next_ids']['supplier'],
         'name': name,
         'contact': (payload.get('contact') or '').strip(),
         'notes': (payload.get('notes') or '').strip(),
     }
+
     data['next_ids']['supplier'] += 1
     data['suppliers'].append(supplier)
     save_db(data)
@@ -252,11 +278,14 @@ def delete_supplier(supplier_id: int):
     auth = require_login()
     if auth:
         return auth
+
     data = load_db()
     before = len(data['suppliers'])
     data['suppliers'] = [s for s in data['suppliers'] if s.get('id') != supplier_id]
+
     if len(data['suppliers']) == before:
         return jsonify({'error': 'Fornecedor não encontrado'}), 404
+
     save_db(data)
     return jsonify({'ok': True})
 
@@ -266,6 +295,7 @@ def close_day():
     auth = require_login()
     if auth:
         return auth
+
     data = load_db()
     payload = request.get_json(silent=True) or {}
     day = payload.get('date') or today_iso()
@@ -284,6 +314,7 @@ def close_day():
         'notes': (payload.get('notes') or '').strip(),
         'created_at': datetime.now().isoformat(timespec='seconds')
     }
+
     data['next_ids']['closure'] += 1
     data['closures'].append(closure)
     save_db(data)
@@ -295,6 +326,7 @@ def history():
     auth = require_login()
     if auth:
         return auth
+
     data = load_db()
     closures = sorted(data['closures'], key=lambda x: x.get('created_at', ''), reverse=True)
     return jsonify(closures)
@@ -305,12 +337,14 @@ def backup():
     auth = require_login()
     if auth:
         return auth
+
     ensure_db()
     mem = BytesIO()
     with zipfile.ZipFile(mem, mode='w', compression=zipfile.ZIP_DEFLATED) as zf:
         zf.write(DB_PATH, arcname='backup/db.json')
     mem.seek(0)
-    filename = f"backup-app-talho-{today_iso()}.zip"
+
+    filename = f'backup-app-talho-{today_iso()}.zip'
     return send_file(mem, as_attachment=True, download_name=filename, mimetype='application/zip')
 
 
@@ -321,6 +355,10 @@ def serve_static(path: str):
         return send_from_directory(STATIC_DIR, path)
     return send_from_directory(STATIC_DIR, 'index.html')
 
+
+if __name__ == '__main__':
+    ensure_db()
+    app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 5000)))
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 5000)))
