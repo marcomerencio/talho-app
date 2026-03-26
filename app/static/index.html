@@ -1,55 +1,11 @@
 <!DOCTYPE html>
 <html lang="pt">
 <head>
-<meta charset="UTF-8">
-<title>Talho App</title>
-<style>
-body{font-family:Arial;background:#f5f7fb;padding:20px}
-.card{background:#fff;padding:20px;border-radius:10px;max-width:400px;margin:auto}
-input,button{width:100%;padding:10px;margin-top:10px}
-button{background:#b91c1c;color:white;border:none}
-.hidden{display:none}
-</style>
+    <meta charset="UTF-8">
+    <title>App Talho</title>
 </head>
 <body>
-
-<div id="login" class="card">
-<h2>Login</h2>
-<input id="user" value="admin">
-<input id="pass" type="password" value="1234">
-<button onclick="login()">Entrar</button>
-</div>
-
-<div id="app" class="card hidden">
-<h2>App Talho</h2>
-<button onclick="alert('Funciona!')">Teste</button>
-</div>
-
-<script>
-let token = ""
-
-async function login(){
-  const form = new URLSearchParams()
-  form.append("username", user.value)
-  form.append("password", pass.value)
-
-  const res = await fetch("/api/login",{
-    method:"POST",
-    body:form
-  })
-
-  if(!res.ok){ alert("Erro login"); return }
-
-  const data = await res.json()
-  token = data.access_token
-
-  loginDiv = document.getElementById("login")
-  appDiv = document.getElementById("app")
-
-  loginDiv.classList.add("hidden")
-  appDiv.classList.remove("hidden")
-}
-</script>
-
+    <h1>App Talho (Versão Final)</h1>
+    <p>Interface base pronta para expansão.</p>
 </body>
 </html>
