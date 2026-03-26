@@ -347,7 +347,137 @@ def backup():
     filename = f'backup-app-talho-{today_iso()}.zip'
     return send_file(mem, as_attachment=True, download_name=filename, mimetype='application/zip')
 
+@app.route('/api/stock', methods=['GET', 'POST'])
+def stock_items():
+    auth = require_login()
+    if auth:
+        return auth
 
+    data = load_db()
+    if 'stock' not in data:
+        data['stock'] = []
+        save_db(data)
+
+    if request.method == 'GET':
+        return jsonify(data['stock'])
+
+    payload = request.get_json(silent=True) or {}
+    name = (payload.get('name') or '').strip()
+    if not name:
+        return jsonify({'error': 'Produto obrigatório'}), 400
+
+    item = {
+        'id': len(data['stock']) + 1,
+        'name': name,
+        'qty': parse_amount(payload.get('qty', 0)),
+        'unit': (payload.get('unit') or 'kg').strip(),
+        'min': parse_amount(payload.get('min', 0)),
+    }
+    data['stock'].append(item)
+    save_db(data)
+    return jsonify(item), 201
+    @app.route('/api/buy-items', methods=['GET', 'POST'])
+def buy_items():
+    auth = require_login()
+    if auth:
+        return auth
+
+    data = load_db()
+    if 'buy_items' not in data:
+        data['buy_items'] = []
+        save_db(data)
+
+    if request.method == 'GET':
+        return jsonify(data['buy_items'])
+
+    payload = request.get_json(silent=True) or {}
+    name = (payload.get('name') or '').strip()
+    if not name:
+        return jsonify({'error': 'Artigo obrigatório'}), 400
+
+    item = {
+        'id': len(data['buy_items']) + 1,
+        'name': name,
+        'qty': parse_amount(payload.get('qty', 0)),
+        'unit': (payload.get('unit') or 'kg').strip(),
+        'priority': (payload.get('priority') or 'Média').strip(),
+    }
+    data['buy_items'].append(item)
+    save_db(data)
+    return jsonify(item), 201
+    @app.route('/api/clients', methods=['GET', 'POST'])
+def clients():
+    auth = require_login()
+    if auth:
+        return auth
+
+    data = load_db()
+    if 'clients' not in data:
+        data['clients'] = []
+        save_db(data)
+
+    if request.method == 'GET':
+        return jsonify(data['clients'])
+
+    payload = request.get_json(silent=True) or {}
+    name = (payload.get('name') or '').strip()
+    if not name:
+        return jsonify({'error': 'Nome obrigatório'}), 400
+
+    client = {
+        'id': len(data['clients']) + 1,
+        'name': name,
+        'phone': (payload.get('phone') or '').strip(),
+        'note': (payload.get('note') or '').strip(),
+    }
+    data['clients'].append(client)
+    save_db(data)
+    return jsonify(client), 201
+    @app.route('/api/cash-state', methods=['GET', 'POST'])
+def cash_state():
+    auth = require_login()
+    if auth:
+        return auth
+
+    data = load_db()
+
+    if 'cash_state' not in data:
+        data['cash_state'] = {
+            'talho': {
+                'date': '',
+                'start': 100,
+                'inCash': 0,
+                'inMb': 0,
+                'inMbway': 0,
+                'inOther': 0,
+                'out': 0,
+                'obs': '',
+                'notes': {'500':0,'200':0,'100':0,'50':0,'20':0,'10':0,'5':0},
+                'coins': {'2':0,'1':0,'0.5':0,'0.2':0,'0.1':0,'0.05':0,'0.02':0,'0.01':0}
+            },
+            'cong': {
+                'date': '',
+                'start': 100,
+                'inCash': 0,
+                'inMb': 0,
+                'inMbway': 0,
+                'inOther': 0,
+                'out': 0,
+                'obs': '',
+                'notes': {'500':0,'200':0,'100':0,'50':0,'20':0,'10':0,'5':0},
+                'coins': {'2':0,'1':0,'0.5':0,'0.2':0,'0.1':0,'0.05':0,'0.02':0,'0.01':0}
+            }
+        }
+        save_db(data)
+
+    if request.method == 'GET':
+        return jsonify(data['cash_state'])
+
+    payload = request.get_json(silent=True) or {}
+    data['cash_state'] = payload
+    save_db(data)
+    return jsonify({'ok': True})
+    
 @app.route('/<path:path>')
 def serve_static(path: str):
     file_path = os.path.join(STATIC_DIR, path)
