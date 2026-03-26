@@ -1,11 +1,9 @@
-Talho Pro Final — backup + relatório diário
+ZIP corrigido para Render.
 
-Login:
-- admin / 1234
-- caixa1 / 1111
+Ficheiros incluídos:
+- app/main.py
+- app/static/index.html
+- requirements.txt
 
-Arranque:
-python -m venv venv
-venv\Scripts\activate
-pip install -r requirements.txt
-uvicorn app.main:app --reload
+No Render usa:
+Start Command: gunicorn app.main:app
