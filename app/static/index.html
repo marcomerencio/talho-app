@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Talho Caixa Pro</title>
+<title>GRUPO BOLHÃO</title>
   <style>
     :root{
       --bg:#f4f6fb; --card:#ffffff; --text:#172033; --muted:#64748b; --line:#e2e8f0;
@@ -171,7 +171,7 @@
 
   <div id="appScreen" class="app hidden">
     <aside class="side">
-      <div class="brand">Talho Caixa Pro</div>
+      <div class="brand">GRUPO BOLHÃO</div>
       <div class="sub" style="color:#cbd5e1">Gestão do talho sem módulo de vendas</div>
       <div class="menu">
         <button class="tab active" data-tab="dashboard">📊 Dashboard</button>
@@ -403,27 +403,48 @@ const coinValues = [2,1,0.5,0.2,0.1,0.05,0.02,0.01];
 
 function todayISO(){ return new Date().toISOString().slice(0,10); }
 
-function login(){
+async function login(){
   const p = document.getElementById('loginPass').value.trim();
   const errorBox = document.getElementById('loginError');
 
-  if{
+  try {
     errorBox.style.display = 'none';
-    document.getElementById('loginScreen').classList.add('hidden');
-    document.getElementById('appScreen').classList.remove('hidden');
-    initCashInputs();
-    renderAll();
-  } else {
+
+    const res = await fetch('/api/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ pin: p })
+    });
+
+    if (res.ok) {
+      document.getElementById('loginScreen').classList.add('hidden');
+      document.getElementById('appScreen').classList.remove('hidden');
+      document.getElementById('loginPass').value = '';
+      initCashInputs();
+      renderAll();
+    } else {
+      errorBox.textContent = 'PIN inválido. Tenta novamente.';
+      errorBox.style.display = 'block';
+    }
+  } catch (err) {
+    errorBox.textContent = 'Erro ao iniciar sessão.';
     errorBox.style.display = 'block';
   }
-function logout(){
+}
+
+async function logout(){
   const ok = confirm('Tens a certeza que queres sair da aplicação?');
-  if(!ok) return;
+  if (!ok) return;
+
+  try {
+    await fetch('/api/logout', { method: 'POST' });
+  } catch (err) {}
 
   document.getElementById('appScreen').classList.add('hidden');
   document.getElementById('loginScreen').classList.remove('hidden');
   document.getElementById('loginPass').value = '';
   document.getElementById('loginError').style.display = 'none';
+}
 }
 
 document.querySelectorAll('.tab').forEach(btn=>{
