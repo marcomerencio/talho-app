@@ -1,6 +1,5 @@
 from __future__ import annotations
-
-from flask import Flask, jsonify, request, send_from_directory, session, send_file
+from flask import Flask, send_from_directory, request, jsonify, session
 import os
 import json
 from datetime import datetime, date
