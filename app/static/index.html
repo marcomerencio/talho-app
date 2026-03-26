@@ -407,7 +407,7 @@ function login(){
   const p = document.getElementById('loginPass').value.trim();
   const errorBox = document.getElementById('loginError');
 
-  if(p === '1234'){
+  if{
     errorBox.style.display = 'none';
     document.getElementById('loginScreen').classList.add('hidden');
     document.getElementById('appScreen').classList.remove('hidden');
@@ -416,10 +416,14 @@ function login(){
   } else {
     errorBox.style.display = 'block';
   }
-}
 function logout(){
+  const ok = confirm('Tens a certeza que queres sair da aplicação?');
+  if(!ok) return;
+
   document.getElementById('appScreen').classList.add('hidden');
   document.getElementById('loginScreen').classList.remove('hidden');
+  document.getElementById('loginPass').value = '';
+  document.getElementById('loginError').style.display = 'none';
 }
 
 document.querySelectorAll('.tab').forEach(btn=>{
