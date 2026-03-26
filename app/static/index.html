@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>GRUPO BOLHÃO</title>
+  <title>GRUPO BOLHÃO</title>
   <style>
     :root{
       --bg:#f4f6fb; --card:#ffffff; --text:#172033; --muted:#64748b; --line:#e2e8f0;
@@ -12,98 +12,90 @@
     *{box-sizing:border-box}
     body{margin:0;font-family:Arial,Helvetica,sans-serif;background:var(--bg);color:var(--text)}
     .hidden{display:none!important}
-   .login-wrap{
-  min-height:100vh;
-  display:flex;
-  align-items:center;
-  justify-content:center;
-  padding:24px;
-  background:
-    radial-gradient(circle at top left, rgba(185,28,28,.18), transparent 30%),
-    radial-gradient(circle at bottom right, rgba(153,27,27,.22), transparent 28%),
-    linear-gradient(135deg, #0f172a, #111827 58%, #3f0d0d);
-}
-
-.login-card,.card{
-  background:var(--card);
-  border:1px solid var(--line);
-  border-radius:18px;
-  box-shadow:0 1px 3px rgba(0,0,0,.06);
-}
-
-.login-card{
-  width:min(460px,100%);
-  padding:34px 28px 28px;
-  border-radius:24px;
-  box-shadow:0 25px 60px rgba(0,0,0,.35);
-  background:rgba(255,255,255,.96);
-}
-
-.brand{
-  font-size:30px;
-  font-weight:700;
-  color:var(--brand);
-  text-align:center;
-  margin-bottom:8px;
-}
-
-.sub{
-  color:var(--muted);
-  margin:6px 0 20px;
-  text-align:center;
-  line-height:1.5;
-}
-
-.login-logo{
-  width:76px;
-  height:76px;
-  margin:0 auto 16px;
-  border-radius:20px;
-  display:flex;
-  align-items:center;
-  justify-content:center;
-  font-size:34px;
-  background:linear-gradient(135deg, #b91c1c, #7f1d1d);
-  color:#fff;
-  box-shadow:0 12px 30px rgba(185,28,28,.25);
-}
-.login-logo img{
-  width:52px;
-  height:52px;
-  object-fit:contain;
-}
-.login-label{
-  display:block;
-  margin-bottom:8px;
-  font-weight:700;
-  color:#334155;
-}
-
-.login-input{
-  width:100%;
-  padding:13px 14px;
-  border:1px solid #cbd5e1;
-  border-radius:14px;
-  background:#fff;
-}
-
-.login-input.pin{
-  text-align:center;
-  font-size:24px;
-  letter-spacing:8px;
-}
-
-.login-error{
-  display:none;
-  margin-top:14px;
-  background:rgba(239,68,68,.12);
-  border:1px solid rgba(239,68,68,.25);
-  color:#991b1b;
-  padding:12px 14px;
-  border-radius:14px;
-  text-align:center;
-  font-size:14px;
-}
+    .login-wrap{
+      min-height:100vh;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      padding:24px;
+      background:
+        radial-gradient(circle at top left, rgba(185,28,28,.18), transparent 30%),
+        radial-gradient(circle at bottom right, rgba(153,27,27,.22), transparent 28%),
+        linear-gradient(135deg, #0f172a, #111827 58%, #3f0d0d);
+    }
+    .login-card,.card{
+      background:var(--card);
+      border:1px solid var(--line);
+      border-radius:18px;
+      box-shadow:0 1px 3px rgba(0,0,0,.06);
+    }
+    .login-card{
+      width:min(460px,100%);
+      padding:34px 28px 28px;
+      border-radius:24px;
+      box-shadow:0 25px 60px rgba(0,0,0,.35);
+      background:rgba(255,255,255,.96);
+    }
+    .brand{
+      font-size:30px;
+      font-weight:700;
+      color:var(--brand);
+      text-align:center;
+      margin-bottom:8px;
+    }
+    .sub{
+      color:var(--muted);
+      margin:6px 0 20px;
+      text-align:center;
+      line-height:1.5;
+    }
+    .login-logo{
+      width:76px;
+      height:76px;
+      margin:0 auto 16px;
+      border-radius:20px;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      font-size:34px;
+      background:linear-gradient(135deg, #b91c1c, #7f1d1d);
+      color:#fff;
+      box-shadow:0 12px 30px rgba(185,28,28,.25);
+    }
+    .login-logo img{
+      width:52px;
+      height:52px;
+      object-fit:contain;
+    }
+    .login-label{
+      display:block;
+      margin-bottom:8px;
+      font-weight:700;
+      color:#334155;
+    }
+    .login-input{
+      width:100%;
+      padding:13px 14px;
+      border:1px solid #cbd5e1;
+      border-radius:14px;
+      background:#fff;
+    }
+    .login-input.pin{
+      text-align:center;
+      font-size:24px;
+      letter-spacing:8px;
+    }
+    .login-error{
+      display:none;
+      margin-top:14px;
+      background:rgba(239,68,68,.12);
+      border:1px solid rgba(239,68,68,.25);
+      color:#991b1b;
+      padding:12px 14px;
+      border-radius:14px;
+      text-align:center;
+      font-size:14px;
+    }
     input,select,button,textarea{font:inherit}
     input,select,textarea{width:100%;padding:11px 12px;border:1px solid #cbd5e1;border-radius:12px;background:#fff}
     button{cursor:pointer;border:none;border-radius:12px;padding:11px 15px;font-weight:700}
@@ -143,31 +135,31 @@
   </style>
 </head>
 <body>
- <div id="loginScreen" class="login-wrap">
-  <div class="login-card">
-    <div class="login-logo">
-  <img src="/logo.png" alt="Logótipo do Talho">
-</div>
-    <div class="brand">GRUPO BOLHÃO</div>
-    <div class="sub">Gestão profissional de caixa, stock, compras e clientes</div>
+  <div id="loginScreen" class="login-wrap">
+    <div class="login-card">
+      <div class="login-logo">
+        <img src="/logo.png" alt="Logótipo do Talho">
+      </div>
+      <div class="brand">GRUPO BOLHÃO</div>
+      <div class="sub">Gestão profissional de caixa, stock, compras e clientes</div>
 
-    <label class="login-label">Nome do talho</label>
-    <input class="login-input" id="loginUser" value="Bolhão Talho">
+      <label class="login-label">Nome do talho</label>
+      <input class="login-input" id="loginUser" value="Bolhão Talho">
 
-    <div style="height:12px"></div>
+      <div style="height:12px"></div>
 
-    <label class="login-label">PIN</label>
-    <input class="login-input pin" id="loginPass" type="password" maxlength="4" inputmode="numeric" placeholder="••••">
+      <label class="login-label">PIN</label>
+      <input class="login-input pin" id="loginPass" type="password" maxlength="4" inputmode="numeric" placeholder="••••">
 
-    <div class="actions">
-      <button class="btn" onclick="login()">Entrar</button>
-      <button class="btn sec" onclick="seedDemo()">Carregar demonstração</button>
+      <div class="actions">
+        <button class="btn" onclick="login()">Entrar</button>
+        <button class="btn sec" onclick="seedDemo()">Carregar demonstração</button>
+      </div>
+
+      <div id="loginError" class="login-error">PIN inválido. Tenta novamente.</div>
+      <div class="footer-note">Acesso reservado ao responsável de caixa</div>
     </div>
-
-    <div id="loginError" class="login-error">PIN inválido. Tenta novamente.</div>
-    <div class="footer-note">Acesso reservado ao responsável de caixa</div>
   </div>
-</div>
 
   <div id="appScreen" class="app hidden">
     <aside class="side">
@@ -379,29 +371,44 @@
 
 <script>
 const euro = v => new Intl.NumberFormat('pt-PT',{style:'currency',currency:'EUR'}).format(Number(v||0));
-const DB = {
-  get(k, f){ return JSON.parse(localStorage.getItem(k) || JSON.stringify(f)); },
-  set(k, v){ localStorage.setItem(k, JSON.stringify(v)); }
-};
 
-let stock = DB.get('talho_caixa_stock', []);
-let buyItems = DB.get('talho_caixa_buyitems', []);
-let clients = DB.get('talho_caixa_clients', []);
-let cashCloseTalho = DB.get('talho_caixa_cashclose_talho', {
+let stock = [];
+let buyItems = [];
+let clients = [];
+let cashCloseTalho = {
   date:'', start:100, inCash:0, inMb:0, inMbway:0, inOther:0, out:0, obs:'',
   notes:{500:0,200:0,100:0,50:0,20:0,10:0,5:0},
   coins:{2:0,1:0,0.5:0,0.2:0,0.1:0,0.05:0,0.02:0,0.01:0}
-});
-let cashCloseCong = DB.get('talho_caixa_cashclose_cong', {
+};
+let cashCloseCong = {
   date:'', start:100, inCash:0, inMb:0, inMbway:0, inOther:0, out:0, obs:'',
   notes:{500:0,200:0,100:0,50:0,20:0,10:0,5:0},
   coins:{2:0,1:0,0.5:0,0.2:0,0.1:0,0.05:0,0.02:0,0.01:0}
-});
+};
 
 const noteValues = [500,200,100,50,20,10,5];
 const coinValues = [2,1,0.5,0.2,0.1,0.05,0.02,0.01];
 
 function todayISO(){ return new Date().toISOString().slice(0,10); }
+
+async function loadServerData(){
+  const [stockRes, buyRes, clientsRes, cashRes] = await Promise.all([
+    fetch('/api/stock'),
+    fetch('/api/buy-items'),
+    fetch('/api/clients'),
+    fetch('/api/cash-state')
+  ]);
+
+  stock = stockRes.ok ? await stockRes.json() : [];
+  buyItems = buyRes.ok ? await buyRes.json() : [];
+  clients = clientsRes.ok ? await clientsRes.json() : [];
+
+  if (cashRes.ok) {
+    const cash = await cashRes.json();
+    cashCloseTalho = cash.talho || cashCloseTalho;
+    cashCloseCong = cash.cong || cashCloseCong;
+  }
+}
 
 async function login(){
   const p = document.getElementById('loginPass').value.trim();
@@ -420,6 +427,7 @@ async function login(){
       document.getElementById('loginScreen').classList.add('hidden');
       document.getElementById('appScreen').classList.remove('hidden');
       document.getElementById('loginPass').value = '';
+      await loadServerData();
       initCashInputs();
       renderAll();
     } else {
@@ -455,7 +463,6 @@ document.querySelectorAll('.tab').forEach(btn=>{
     renderAll();
   });
 });
-
 
 function buildMoneyTables(section, cashData){
   const nb = document.getElementById('notesBody' + section);
@@ -565,58 +572,116 @@ function calcCashAll(){
   renderDashboardCash(talho, cong);
 }
 
-function saveCashAll(){
+async function saveCashAll(){
   calcCashAll();
-  DB.set('talho_caixa_cashclose_talho', cashCloseTalho);
-  DB.set('talho_caixa_cashclose_cong', cashCloseCong);
-  alert('Fechos de caixa guardados.');
+
+  const payload = {
+    talho: cashCloseTalho,
+    cong: cashCloseCong
+  };
+
+  const res = await fetch('/api/cash-state', {
+    method: 'POST',
+    headers: {'Content-Type':'application/json'},
+    body: JSON.stringify(payload)
+  });
+
+  if(res.ok){
+    alert('Fechos de caixa guardados no servidor.');
+  } else {
+    alert('Erro ao guardar fechos.');
+  }
 }
 
-function addStock(){
+async function addStock(){
   const item = {
     name: document.getElementById('stockName').value.trim(),
     qty: parseFloat(document.getElementById('stockQty').value || 0),
     unit: document.getElementById('stockUnit').value,
     min: parseFloat(document.getElementById('stockMin').value || 0)
   };
-  if(!item.name){ alert('Indica o produto.'); return; }
-  stock.unshift(item);
-  DB.set('talho_caixa_stock', stock);
+
+  if(!item.name){
+    alert('Indica o produto.');
+    return;
+  }
+
+  const res = await fetch('/api/stock', {
+    method: 'POST',
+    headers: {'Content-Type':'application/json'},
+    body: JSON.stringify(item)
+  });
+
+  if(!res.ok){
+    alert('Erro ao guardar produto.');
+    return;
+  }
+
   document.getElementById('stockName').value = '';
   document.getElementById('stockQty').value = '';
+  await loadServerData();
   renderAll();
 }
 
-function addBuyItem(){
+async function addBuyItem(){
   const item = {
     name: document.getElementById('buyItem').value.trim(),
     qty: parseFloat(document.getElementById('buyQty').value || 0),
     unit: document.getElementById('buyUnit').value,
     priority: document.getElementById('buyPriority').value
   };
-  if(!item.name){ alert('Indica o artigo a comprar.'); return; }
-  buyItems.unshift(item);
-  DB.set('talho_caixa_buyitems', buyItems);
+
+  if(!item.name){
+    alert('Indica o artigo a comprar.');
+    return;
+  }
+
+  const res = await fetch('/api/buy-items', {
+    method: 'POST',
+    headers: {'Content-Type':'application/json'},
+    body: JSON.stringify(item)
+  });
+
+  if(!res.ok){
+    alert('Erro ao guardar artigo.');
+    return;
+  }
+
   document.getElementById('buyItem').value = '';
   document.getElementById('buyQty').value = '';
+  await loadServerData();
   renderAll();
 }
 
-function addClient(){
+async function addClient(){
   const c = {
     name: document.getElementById('cliName').value.trim(),
     phone: document.getElementById('cliPhone').value.trim(),
     note: document.getElementById('cliNote').value.trim()
   };
-  if(!c.name){ alert('Indica o nome do cliente.'); return; }
-  clients.unshift(c);
-  DB.set('talho_caixa_clients', clients);
+
+  if(!c.name){
+    alert('Indica o nome do cliente.');
+    return;
+  }
+
+  const res = await fetch('/api/clients', {
+    method: 'POST',
+    headers: {'Content-Type':'application/json'},
+    body: JSON.stringify(c)
+  });
+
+  if(!res.ok){
+    alert('Erro ao guardar cliente.');
+    return;
+  }
+
   document.getElementById('cliName').value = '';
   document.getElementById('cliPhone').value = '';
   document.getElementById('cliNote').value = '';
+  await loadServerData();
   renderAll();
 }
-
 
 function renderDashboardCash(talho, cong){
   document.getElementById('kReal').textContent = euro(talho.real);
@@ -690,40 +755,8 @@ function renderAll(){
 }
 
 function seedDemo(){
-  stock = [
-    {name:'Frango',qty:18,unit:'kg',min:8},
-    {name:'Entrecosto',qty:4.5,unit:'kg',min:6},
-    {name:'Hambúrguer congelado',qty:2,unit:'cx',min:4}
-  ];
-  buyItems = [
-    {name:'Entrecosto',qty:10,unit:'kg',priority:'Alta'},
-    {name:'Hambúrguer congelado',qty:6,unit:'cx',priority:'Alta'},
-    {name:'Carvão',qty:8,unit:'unid',priority:'Média'}
-  ];
-  clients = [
-    {name:'Maria Silva',phone:'912345678',note:'Encomenda cabrito na Páscoa'},
-    {name:'João Costa',phone:'934567890',note:'Compra semanal'}
-  ];
-  cashCloseTalho = {
-    date: todayISO(), start:100, inCash:850, inMb:1200, inMbway:150, inOther:0, out:75, obs:'Fornecedor e trocos',
-    notes:{500:0,200:3,100:2,50:1,20:4,10:6,5:7},
-    coins:{2:20,1:18,0.5:10,0.2:12,0.1:15,0.05:10,0.02:8,0.01:5}
-  };
-  cashCloseCong = {
-    date: todayISO(), start:50, inCash:220, inMb:430, inMbway:35, inOther:0, out:20, obs:'Reposição congelados',
-    notes:{500:0,200:1,100:1,50:0,20:3,10:4,5:2},
-    coins:{2:12,1:10,0.5:6,0.2:8,0.1:10,0.05:6,0.02:5,0.01:4}
-  };
-  DB.set('talho_caixa_stock', stock);
-  DB.set('talho_caixa_buyitems', buyItems);
-  DB.set('talho_caixa_clients', clients);
-  DB.set('talho_caixa_cashclose_talho', cashCloseTalho);
-  DB.set('talho_caixa_cashclose_cong', cashCloseCong);
-  alert('Demonstração carregada.');
+  alert('Demonstração local desativada nesta versão ligada ao servidor.');
 }
-
-
-initCashInputs();
 </script>
 </body>
 </html>
