@@ -1,10 +1,8 @@
-from flask import Flask, send_from_directory, request, jsonify, session, send_file
+from flask import Flask, send_from_directory, request, jsonify, session
 import os
 import json
 import threading
-import zipfile
-from io import BytesIO
-from datetime import date, datetime
+from datetime import date
 from openpyxl import load_workbook
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -19,13 +17,34 @@ app.secret_key = os.environ.get('SECRET_KEY', 'talho-secret-key-change-me')
 APP_PIN = os.environ.get('APP_PIN', '1234')
 
 DEFAULT_DB = {
-    'transactions': [],
-    'closures': [],
+    'stock': [],
     'purchases': [],
-    'next_ids': {
-        'transaction': 1,
-        'closure': 1,
-        'purchase': 1
+    'clients': [],
+    'cash_state': {
+        'talho': {
+            'date': '',
+            'start': 100,
+            'inCash': 0,
+            'inMb': 0,
+            'inMbway': 0,
+            'inOther': 0,
+            'out': 0,
+            'obs': '',
+            'notes': {'500': 0, '200': 0, '100': 0, '50': 0, '20': 0, '10': 0, '5': 0},
+            'coins': {'2': 0, '1': 0, '0.5': 0, '0.2': 0, '0.1': 0, '0.05': 0, '0.02': 0, '0.01': 0}
+        },
+        'cong': {
+            'date': '',
+            'start': 100,
+            'inCash': 0,
+            'inMb': 0,
+            'inMbway': 0,
+            'inOther': 0,
+            'out': 0,
+            'obs': '',
+            'notes': {'500': 0, '200': 0, '100': 0, '50': 0, '20': 0, '10': 0, '5': 0},
+            'coins': {'2': 0, '1': 0, '0.5': 0, '0.2': 0, '0.1': 0, '0.05': 0, '0.02': 0, '0.01': 0}
+        }
     }
 }
 
@@ -44,20 +63,10 @@ def load_db() -> dict:
             data = json.load(f)
 
     changed = False
-
     for key, value in DEFAULT_DB.items():
         if key not in data:
             data[key] = value
             changed = True
-
-    if 'next_ids' not in data:
-        data['next_ids'] = DEFAULT_DB['next_ids']
-        changed = True
-    else:
-        for k, v in DEFAULT_DB['next_ids'].items():
-            if k not in data['next_ids']:
-                data['next_ids'][k] = v
-                changed = True
 
     if changed:
         save_db(data)
@@ -78,78 +87,10 @@ def require_login():
     return None
 
 
-def today_iso() -> str:
-    return date.today().isoformat()
-
-
 def parse_amount(value) -> float:
     if value is None or value == '':
         return 0.0
     return round(float(str(value).replace(',', '.')), 2)
-
-
-def get_today_transactions(data: dict, day: str | None = None) -> list[dict]:
-    day = day or today_iso()
-    return [t for t in data['transactions'] if t.get('date') == day]
-
-
-def compute_summary(transactions: list[dict]) -> dict:
-    sales_talho = 0.0
-    sales_congelados = 0.0
-    expenses = 0.0
-    other_entries = 0.0
-    by_payment = {'dinheiro': 0.0, 'multibanco': 0.0, 'mbway': 0.0, 'outro': 0.0}
-
-    for t in transactions:
-        amount = parse_amount(t.get('amount', 0))
-        ttype = t.get('type', 'sale')
-        section = t.get('section', 'talho')
-        payment = (t.get('payment_method') or 'dinheiro').lower()
-
-        if ttype == 'sale':
-            if section == 'congelados':
-                sales_congelados += amount
-            else:
-                sales_talho += amount
-
-            if payment not in by_payment:
-                payment = 'outro'
-            by_payment[payment] += amount
-
-        elif ttype == 'expense':
-            expenses += amount
-
-        elif ttype == 'entry':
-            other_entries += amount
-
-    total_sales = sales_talho + sales_congelados
-    gross_cash_expected = by_payment['dinheiro'] + other_entries - expenses
-
-    return {
-        'sales_talho': round(sales_talho, 2),
-        'sales_congelados': round(sales_congelados, 2),
-        'total_sales': round(total_sales, 2),
-        'expenses': round(expenses, 2),
-        'other_entries': round(other_entries, 2),
-        'by_payment': {k: round(v, 2) for k, v in by_payment.items()},
-        'cash_expected': round(gross_cash_expected, 2),
-        'count': len(transactions)
-    }
-
-
-def note_counts_total(note_counts: dict) -> float:
-    values = {
-        '500': 500.0, '200': 200.0, '100': 100.0, '50': 50.0, '20': 20.0,
-        '10': 10.0, '5': 5.0, '2': 2.0, '1': 1.0,
-        '0.50': 0.5, '0.20': 0.2, '0.10': 0.1, '0.05': 0.05,
-        '0.02': 0.02, '0.01': 0.01,
-    }
-    total = 0.0
-    note_counts = note_counts or {}
-    for k, v in values.items():
-        qty = int(note_counts.get(k, 0) or 0)
-        total += qty * v
-    return round(total, 2)
 
 
 def load_excel_master():
@@ -157,7 +98,6 @@ def load_excel_master():
         return {'articles': [], 'suppliers': []}
 
     wb = load_workbook(EXCEL_PATH, data_only=True)
-
     articles = []
     suppliers = []
 
@@ -170,7 +110,6 @@ def load_excel_master():
                 item = dict(zip(headers, row))
                 code = str(item.get('codigo', '') or '').strip()
                 name = str(item.get('nome', '') or '').strip()
-
                 if code or name:
                     articles.append({
                         'code': code,
@@ -186,7 +125,6 @@ def load_excel_master():
                 item = dict(zip(headers, row))
                 code = str(item.get('codigo', '') or '').strip()
                 name = str(item.get('nome', '') or '').strip()
-
                 if code or name:
                     suppliers.append({
                         'code': code,
@@ -201,50 +139,47 @@ def index():
     return send_from_directory(STATIC_DIR, 'index.html')
 
 
-@app.route('/health')
-def health():
-    return {'status': 'ok'}, 200
-
-
 @app.route('/api/login', methods=['POST'])
-def login():
-    payload = request.get_json(silent=True) or {}
-    pin = str(payload.get('pin', '')).strip()
+def api_login():
+    data = request.get_json(silent=True) or {}
+    pin = str(data.get('pin', '')).strip()
 
     if pin == APP_PIN:
         session['logged_in'] = True
-        return jsonify({'ok': True})
+        return jsonify({'ok': True}), 200
 
     return jsonify({'ok': False, 'error': 'PIN inválido'}), 401
 
 
 @app.route('/api/logout', methods=['POST'])
-def logout():
+def api_logout():
     session.clear()
-    return jsonify({'ok': True})
+    return jsonify({'ok': True}), 200
 
 
 @app.route('/api/status')
-def status():
+def api_status():
     return jsonify({'logged_in': bool(session.get('logged_in'))})
 
 
-@app.route('/api/summary')
-def summary():
+@app.route('/api/master/articles')
+def api_master_articles():
     auth = require_login()
     if auth:
         return auth
-
-    day = request.args.get('date') or today_iso()
-    data = load_db()
-    transactions = get_today_transactions(data, day)
-    result = compute_summary(transactions)
-    result['date'] = day
-    return jsonify(result)
+    return jsonify(load_excel_master()['articles'])
 
 
-@app.route('/api/transactions', methods=['GET', 'POST'])
-def transactions():
+@app.route('/api/master/suppliers')
+def api_master_suppliers():
+    auth = require_login()
+    if auth:
+        return auth
+    return jsonify(load_excel_master()['suppliers'])
+
+
+@app.route('/api/stock', methods=['GET', 'POST'])
+def api_stock():
     auth = require_login()
     if auth:
         return auth
@@ -252,73 +187,26 @@ def transactions():
     data = load_db()
 
     if request.method == 'GET':
-        day = request.args.get('date') or today_iso()
-        tx = sorted(
-            get_today_transactions(data, day),
-            key=lambda x: x.get('created_at', ''),
-            reverse=True
-        )
-        return jsonify(tx)
+        return jsonify(data.get('stock', []))
 
     payload = request.get_json(silent=True) or {}
-    amount = parse_amount(payload.get('amount', 0))
-    if amount <= 0:
-        return jsonify({'error': 'Valor inválido'}), 400
-
-    tx = {
-        'id': data['next_ids']['transaction'],
-        'date': payload.get('date') or today_iso(),
-        'type': payload.get('type', 'sale'),
-        'section': payload.get('section', 'talho'),
-        'amount': amount,
-        'payment_method': payload.get('payment_method', 'dinheiro'),
-        'description': (payload.get('description') or '').strip(),
-        'created_at': datetime.now().isoformat(timespec='seconds')
+    item = {
+        'name': str(payload.get('name', '')).strip(),
+        'qty': parse_amount(payload.get('qty', 0)),
+        'unit': str(payload.get('unit', 'kg')).strip(),
+        'min': parse_amount(payload.get('min', 0))
     }
 
-    data['next_ids']['transaction'] += 1
-    data['transactions'].append(tx)
+    if not item['name']:
+        return jsonify({'error': 'Produto obrigatório'}), 400
+
+    data['stock'].append(item)
     save_db(data)
-    return jsonify(tx), 201
-
-
-@app.route('/api/transactions/<int:tx_id>', methods=['DELETE'])
-def delete_transaction(tx_id: int):
-    auth = require_login()
-    if auth:
-        return auth
-
-    data = load_db()
-    before = len(data['transactions'])
-    data['transactions'] = [t for t in data['transactions'] if t.get('id') != tx_id]
-
-    if len(data['transactions']) == before:
-        return jsonify({'error': 'Movimento não encontrado'}), 404
-
-    save_db(data)
-    return jsonify({'ok': True})
-
-
-@app.route('/api/master/articles')
-def master_articles():
-    auth = require_login()
-    if auth:
-        return auth
-    data = load_excel_master()
-    return jsonify(data['articles'])
-
-
-@app.route('/api/master/suppliers')
-def master_suppliers():
-    auth = require_login()
-    if auth:
-        return auth
-    data = load_excel_master()
-    return jsonify(data['suppliers'])
+    return jsonify(item), 201
 
 
 @app.route('/api/purchases', methods=['GET', 'POST'])
-def purchases():
+def api_purchases():
     auth = require_login()
     if auth:
         return auth
@@ -329,109 +217,72 @@ def purchases():
         return jsonify(data.get('purchases', []))
 
     payload = request.get_json(silent=True) or {}
-
-    code = str(payload.get('code', '') or '').strip()
-    name = str(payload.get('name', '') or '').strip()
-    supplier = str(payload.get('supplier', '') or '').strip()
-    supplier_code = str(payload.get('supplier_code', '') or '').strip()
-    qty_to_buy = parse_amount(payload.get('qty_to_buy', 0))
-    qty_bought = parse_amount(payload.get('qty_bought', 0))
-
-    if not code or not name:
-        return jsonify({'error': 'Código e artigo são obrigatórios'}), 400
-
     item = {
-        'id': data['next_ids']['purchase'],
-        'code': code,
-        'name': name,
-        'supplier': supplier,
-        'supplier_code': supplier_code,
-        'qty_to_buy': qty_to_buy,
-        'qty_bought': qty_bought,
-        'created_at': datetime.now().isoformat(timespec='seconds')
+        'code': str(payload.get('code', '')).strip(),
+        'name': str(payload.get('name', '')).strip(),
+        'supplier_code': str(payload.get('supplier_code', '')).strip(),
+        'supplier': str(payload.get('supplier', '')).strip(),
+        'qty_to_buy': parse_amount(payload.get('qty_to_buy', 0)),
+        'qty_bought': parse_amount(payload.get('qty_bought', 0)),
+        'unit': str(payload.get('unit', 'kg')).strip(),
+        'priority': str(payload.get('priority', 'Média')).strip()
     }
 
-    data['next_ids']['purchase'] += 1
-    data.setdefault('purchases', []).append(item)
+    if not item['code'] or not item['name']:
+        return jsonify({'error': 'Artigo obrigatório'}), 400
+
+    data['purchases'].append(item)
     save_db(data)
     return jsonify(item), 201
 
 
-@app.route('/api/purchases/<int:item_id>', methods=['DELETE'])
-def delete_purchase(item_id: int):
+@app.route('/api/clients', methods=['GET', 'POST'])
+def api_clients():
     auth = require_login()
     if auth:
         return auth
 
     data = load_db()
-    before = len(data.get('purchases', []))
-    data['purchases'] = [p for p in data.get('purchases', []) if p.get('id') != item_id]
 
-    if len(data['purchases']) == before:
-        return jsonify({'error': 'Artigo não encontrado'}), 404
+    if request.method == 'GET':
+        return jsonify(data.get('clients', []))
 
-    save_db(data)
-    return jsonify({'ok': True})
-
-
-@app.route('/api/close-day', methods=['POST'])
-def close_day():
-    auth = require_login()
-    if auth:
-        return auth
-
-    data = load_db()
     payload = request.get_json(silent=True) or {}
-    day = payload.get('date') or today_iso()
-    note_counts = payload.get('note_counts') or {}
-    observed_cash = note_counts_total(note_counts)
-    summary = compute_summary(get_today_transactions(data, day))
-    difference = round(observed_cash - summary['cash_expected'], 2)
-
-    closure = {
-        'id': data['next_ids']['closure'],
-        'date': day,
-        'summary': summary,
-        'note_counts': note_counts,
-        'observed_cash': observed_cash,
-        'difference': difference,
-        'notes': (payload.get('notes') or '').strip(),
-        'created_at': datetime.now().isoformat(timespec='seconds')
+    item = {
+        'name': str(payload.get('name', '')).strip(),
+        'phone': str(payload.get('phone', '')).strip(),
+        'note': str(payload.get('note', '')).strip()
     }
 
-    data['next_ids']['closure'] += 1
-    data['closures'].append(closure)
+    if not item['name']:
+        return jsonify({'error': 'Nome obrigatório'}), 400
+
+    data['clients'].append(item)
     save_db(data)
-    return jsonify(closure), 201
+    return jsonify(item), 201
 
 
-@app.route('/api/history')
-def history():
+@app.route('/api/cash-state', methods=['GET', 'POST'])
+def api_cash_state():
     auth = require_login()
     if auth:
         return auth
 
     data = load_db()
-    closures = sorted(data['closures'], key=lambda x: x.get('created_at', ''), reverse=True)
-    return jsonify(closures)
 
+    if request.method == 'GET':
+        return jsonify(data.get('cash_state', DEFAULT_DB['cash_state']))
 
-@app.route('/api/backup')
-def backup():
-    auth = require_login()
-    if auth:
-        return auth
+    payload = request.get_json(silent=True) or {}
+    talho = payload.get('talho', DEFAULT_DB['cash_state']['talho'])
+    cong = payload.get('cong', DEFAULT_DB['cash_state']['cong'])
 
-    ensure_db()
-    mem = BytesIO()
-    with zipfile.ZipFile(mem, mode='w', compression=zipfile.ZIP_DEFLATED) as zf:
-        zf.write(DB_PATH, arcname='backup/db.json')
-        if os.path.exists(EXCEL_PATH):
-            zf.write(EXCEL_PATH, arcname='backup/base_sage.xlsx')
-
-    mem.seek(0)
-    filename = f'backup-app-talho-{today_iso()}.zip'
-    return send_file(mem, as_attachment=True, download_name=filename, mimetype='application/zip')
+    data['cash_state'] = {
+        'talho': talho,
+        'cong': cong
+    }
+    save_db(data)
+    return jsonify({'ok': True}), 200
 
 
 @app.route('/<path:path>')
