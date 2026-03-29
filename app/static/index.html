@@ -144,7 +144,7 @@
       <div class="sub">Gestão profissional de caixa, stock, compras e clientes</div>
 
       <label class="login-label">Nome do talho</label>
-      <input class="login-input" id="loginUser" value="Bolhão Talho">
+      <input class="login-input" id="loginUser" value="Bolhão Talho" readonly>
 
       <div style="height:12px"></div>
 
@@ -153,7 +153,6 @@
 
       <div class="actions">
         <button class="btn" onclick="login()">Entrar</button>
-        <button class="btn sec" onclick="seedDemo()">Carregar demonstração</button>
       </div>
 
       <div id="loginError" class="login-error">PIN inválido. Tenta novamente.</div>
@@ -331,19 +330,63 @@
       </section>
 
       <section id="compras" class="screen hidden">
-        <div class="top"><div><div class="title">Artigos a Comprar</div><div class="muted">Lista de reposição por falta de stock</div></div></div>
+        <div class="top"><div><div class="title">Artigos a Comprar</div><div class="muted">Lista de reposição vinda do Excel e guardada no servidor</div></div></div>
+
         <div class="card pad">
           <div class="formgrid">
-            <div><label>Artigo</label><input id="buyItem"></div>
-            <div><label>Quantidade a comprar</label><input type="number" step="0.01" id="buyQty"></div>
-            <div><label>Unidade</label><select id="buyUnit"><option>kg</option><option>unid</option><option>cx</option></select></div>
-            <div><label>Prioridade</label><select id="buyPriority"><option>Alta</option><option>Média</option><option>Baixa</option></select></div>
+            <div>
+              <label>Artigo</label>
+              <select id="buyArticleCode" onchange="fillBuyArticle()">
+                <option value="">Selecionar artigo</option>
+              </select>
+            </div>
+            <div>
+              <label>Nome do artigo</label>
+              <input id="buyItem" readonly>
+            </div>
+            <div>
+              <label>Fornecedor</label>
+              <select id="buySupplierCode">
+                <option value="">Selecionar fornecedor</option>
+              </select>
+            </div>
+            <div>
+              <label>Quantidade a comprar</label>
+              <input type="number" step="0.01" id="buyQty">
+            </div>
+            <div>
+              <label>Quantidade comprada</label>
+              <input type="number" step="0.01" id="buyBoughtQty" value="0">
+            </div>
+            <div>
+              <label>Unidade</label>
+              <select id="buyUnit"><option>kg</option><option>unid</option><option>cx</option></select>
+            </div>
+            <div>
+              <label>Prioridade</label>
+              <select id="buyPriority"><option>Alta</option><option>Média</option><option>Baixa</option></select>
+            </div>
+            <div style="display:flex;align-items:end">
+              <button class="btn" style="width:100%" onclick="addBuyItem()">Guardar artigo</button>
+            </div>
           </div>
-          <div class="actions"><button class="btn" onclick="addBuyItem()">Guardar artigo</button></div>
         </div>
+
         <div class="card pad section">
           <table id="tblBuy">
-            <thead><tr><th>Artigo</th><th>Quantidade</th><th>Unidade</th><th>Prioridade</th></tr></thead>
+            <thead>
+              <tr>
+                <th>Cód. Artigo</th>
+                <th>Artigo</th>
+                <th>Cód. Fornecedor</th>
+                <th>Fornecedor</th>
+                <th>Qtd. Comprar</th>
+                <th>Qtd. Comprada</th>
+                <th>Unidade</th>
+                <th>Prioridade</th>
+                <th>Estado</th>
+              </tr>
+            </thead>
             <tbody></tbody>
           </table>
         </div>
@@ -375,6 +418,9 @@ const euro = v => new Intl.NumberFormat('pt-PT',{style:'currency',currency:'EUR'
 let stock = [];
 let buyItems = [];
 let clients = [];
+let excelArticles = [];
+let excelSuppliers = [];
+
 let cashCloseTalho = {
   date:'', start:100, inCash:0, inMb:0, inMbway:0, inOther:0, out:0, obs:'',
   notes:{500:0,200:0,100:0,50:0,20:0,10:0,5:0},
@@ -392,22 +438,45 @@ const coinValues = [2,1,0.5,0.2,0.1,0.05,0.02,0.01];
 function todayISO(){ return new Date().toISOString().slice(0,10); }
 
 async function loadServerData(){
-  const [stockRes, buyRes, clientsRes, cashRes] = await Promise.all([
+  const [stockRes, buyRes, clientsRes, cashRes, articlesRes, suppliersRes] = await Promise.all([
     fetch('/api/stock'),
-    fetch('/api/buy-items'),
+    fetch('/api/purchases'),
     fetch('/api/clients'),
-    fetch('/api/cash-state')
+    fetch('/api/cash-state'),
+    fetch('/api/master/articles'),
+    fetch('/api/master/suppliers')
   ]);
 
   stock = stockRes.ok ? await stockRes.json() : [];
   buyItems = buyRes.ok ? await buyRes.json() : [];
   clients = clientsRes.ok ? await clientsRes.json() : [];
+  excelArticles = articlesRes.ok ? await articlesRes.json() : [];
+  excelSuppliers = suppliersRes.ok ? await suppliersRes.json() : [];
 
   if (cashRes.ok) {
     const cash = await cashRes.json();
     cashCloseTalho = cash.talho || cashCloseTalho;
     cashCloseCong = cash.cong || cashCloseCong;
   }
+
+  populateBuySelectors();
+}
+
+function populateBuySelectors(){
+  const articleSel = document.getElementById('buyArticleCode');
+  const supplierSel = document.getElementById('buySupplierCode');
+
+  articleSel.innerHTML = '<option value="">Selecionar artigo</option>' +
+    excelArticles.map(a => `<option value="${a.code}">${a.code} - ${a.name}</option>`).join('');
+
+  supplierSel.innerHTML = '<option value="">Selecionar fornecedor</option>' +
+    excelSuppliers.map(s => `<option value="${s.code}">${s.code} - ${s.name}</option>`).join('');
+}
+
+function fillBuyArticle(){
+  const code = document.getElementById('buyArticleCode').value;
+  const article = excelArticles.find(a => a.code === code);
+  document.getElementById('buyItem').value = article ? article.name : '';
 }
 
 async function login(){
@@ -624,19 +693,33 @@ async function addStock(){
 }
 
 async function addBuyItem(){
+  const articleCode = document.getElementById('buyArticleCode').value;
+  const supplierCode = document.getElementById('buySupplierCode').value;
+  const article = excelArticles.find(a => a.code === articleCode);
+  const supplier = excelSuppliers.find(s => s.code === supplierCode);
+
+  if(!articleCode || !article){
+    alert('Seleciona um artigo.');
+    return;
+  }
+
+  if(!supplierCode || !supplier){
+    alert('Seleciona um fornecedor.');
+    return;
+  }
+
   const item = {
-    name: document.getElementById('buyItem').value.trim(),
-    qty: parseFloat(document.getElementById('buyQty').value || 0),
+    code: article.code,
+    name: article.name,
+    supplier_code: supplier.code,
+    supplier: supplier.name,
+    qty_to_buy: parseFloat(document.getElementById('buyQty').value || 0),
+    qty_bought: parseFloat(document.getElementById('buyBoughtQty').value || 0),
     unit: document.getElementById('buyUnit').value,
     priority: document.getElementById('buyPriority').value
   };
 
-  if(!item.name){
-    alert('Indica o artigo a comprar.');
-    return;
-  }
-
-  const res = await fetch('/api/buy-items', {
+  const res = await fetch('/api/purchases', {
     method: 'POST',
     headers: {'Content-Type':'application/json'},
     body: JSON.stringify(item)
@@ -647,8 +730,12 @@ async function addBuyItem(){
     return;
   }
 
+  document.getElementById('buyArticleCode').value = '';
   document.getElementById('buyItem').value = '';
+  document.getElementById('buySupplierCode').value = '';
   document.getElementById('buyQty').value = '';
+  document.getElementById('buyBoughtQty').value = '0';
+
   await loadServerData();
   renderAll();
 }
@@ -713,9 +800,25 @@ function renderBuyItems(){
   tb.innerHTML = '';
   buyItems.forEach(o=>{
     const cls = o.priority === 'Alta' ? 'bad' : (o.priority === 'Média' ? 'warn' : 'ok');
-    tb.innerHTML += `<tr><td>${o.name}</td><td>${o.qty}</td><td>${o.unit}</td><td><span class="badge ${cls}">${o.priority}</span></td></tr>`;
+    const estado = Number(o.qty_bought || 0) <= 0
+      ? '<span class="badge bad">Por comprar</span>'
+      : Number(o.qty_bought || 0) < Number(o.qty_to_buy || 0)
+      ? '<span class="badge warn">Parcial</span>'
+      : '<span class="badge ok">Comprado</span>';
+
+    tb.innerHTML += `<tr>
+      <td>${o.code || ''}</td>
+      <td>${o.name}</td>
+      <td>${o.supplier_code || ''}</td>
+      <td>${o.supplier || ''}</td>
+      <td>${o.qty_to_buy}</td>
+      <td>${o.qty_bought}</td>
+      <td>${o.unit || ''}</td>
+      <td><span class="badge ${cls}">${o.priority}</span></td>
+      <td>${estado}</td>
+    </tr>`;
   });
-  if(!tb.innerHTML) tb.innerHTML = '<tr><td colspan="4" class="muted">Sem artigos em falta.</td></tr>';
+  if(!tb.innerHTML) tb.innerHTML = '<tr><td colspan="9" class="muted">Sem artigos em falta.</td></tr>';
 }
 
 function renderClients(){
@@ -734,9 +837,9 @@ function renderAlerts(){
   lowItems.forEach(s=>{
     tb.innerHTML += `<tr><td>Stock</td><td>${s.name} com ${s.qty} ${s.unit}</td><td><span class="badge warn">Baixo</span></td></tr>`;
   });
-  const pend = buyItems.length;
+  const pend = buyItems.filter(i => Number(i.qty_bought || 0) < Number(i.qty_to_buy || 0)).length;
   if(pend > 0){
-    tb.innerHTML += `<tr><td>Compras</td><td>${pend} artigo(s) para repor</td><td><span class="badge bad">Atenção</span></td></tr>`;
+    tb.innerHTML += `<tr><td>Compras</td><td>${pend} artigo(s) por concluir</td><td><span class="badge bad">Atenção</span></td></tr>`;
   }
   const talhoDiffText = document.getElementById('cashDiffTalho').value || euro(0);
   const congDiffText = document.getElementById('cashDiffCong').value || euro(0);
@@ -754,9 +857,893 @@ function renderAll(){
   renderAlerts();
 }
 
-function seedDemo(){
-  alert('Demonstração local desativada nesta versão ligada ao servidor.');
+window.addEventListener('load', async () => {
+  try {
+    const res = await fetch('/api/status');
+    const status = res.ok ? await res.json() : { logged_in: false };
+    if (status.logged_in) {
+      document.getElementById('loginScreen').classList.add('hidden');
+      document.getElementById('appScreen').classList.remove('hidden');
+      await loadServerData();
+      initCashInputs();
+      renderAll();
+    }
+  } catch (e) {}
+});
+</script>
+</body>
+</html><!DOCTYPE html>
+<html lang="pt">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>GRUPO BOLHÃO</title>
+  <style>
+    :root{
+      --bg:#f4f6fb; --card:#ffffff; --text:#172033; --muted:#64748b; --line:#e2e8f0;
+      --brand:#b91c1c; --brand-dark:#991b1b; --ok:#166534; --warn:#92400e; --bad:#991b1b;
+    }
+    *{box-sizing:border-box}
+    body{margin:0;font-family:Arial,Helvetica,sans-serif;background:var(--bg);color:var(--text)}
+    .hidden{display:none!important}
+    .login-wrap{
+      min-height:100vh;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      padding:24px;
+      background:
+        radial-gradient(circle at top left, rgba(185,28,28,.18), transparent 30%),
+        radial-gradient(circle at bottom right, rgba(153,27,27,.22), transparent 28%),
+        linear-gradient(135deg, #0f172a, #111827 58%, #3f0d0d);
+    }
+    .login-card,.card{
+      background:var(--card);
+      border:1px solid var(--line);
+      border-radius:18px;
+      box-shadow:0 1px 3px rgba(0,0,0,.06);
+    }
+    .login-card{
+      width:min(460px,100%);
+      padding:34px 28px 28px;
+      border-radius:24px;
+      box-shadow:0 25px 60px rgba(0,0,0,.35);
+      background:rgba(255,255,255,.96);
+    }
+    .brand{
+      font-size:30px;
+      font-weight:700;
+      color:var(--brand);
+      text-align:center;
+      margin-bottom:8px;
+    }
+    .sub{
+      color:var(--muted);
+      margin:6px 0 20px;
+      text-align:center;
+      line-height:1.5;
+    }
+    .login-logo{
+      width:76px;
+      height:76px;
+      margin:0 auto 16px;
+      border-radius:20px;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      font-size:34px;
+      background:linear-gradient(135deg, #b91c1c, #7f1d1d);
+      color:#fff;
+      box-shadow:0 12px 30px rgba(185,28,28,.25);
+    }
+    .login-logo img{
+      width:52px;
+      height:52px;
+      object-fit:contain;
+    }
+    .login-label{
+      display:block;
+      margin-bottom:8px;
+      font-weight:700;
+      color:#334155;
+    }
+    .login-input{
+      width:100%;
+      padding:13px 14px;
+      border:1px solid #cbd5e1;
+      border-radius:14px;
+      background:#fff;
+    }
+    .login-input.pin{
+      text-align:center;
+      font-size:24px;
+      letter-spacing:8px;
+    }
+    .login-error{
+      display:none;
+      margin-top:14px;
+      background:rgba(239,68,68,.12);
+      border:1px solid rgba(239,68,68,.25);
+      color:#991b1b;
+      padding:12px 14px;
+      border-radius:14px;
+      text-align:center;
+      font-size:14px;
+    }
+    input,select,button,textarea{font:inherit}
+    input,select,textarea{width:100%;padding:11px 12px;border:1px solid #cbd5e1;border-radius:12px;background:#fff}
+    button{cursor:pointer;border:none;border-radius:12px;padding:11px 15px;font-weight:700}
+    .btn{background:var(--brand);color:#fff}
+    .btn:hover{background:var(--brand-dark)}
+    .btn.sec{background:#e2e8f0;color:#172033}
+    .app{display:grid;grid-template-columns:250px 1fr;min-height:100vh}
+    .side{background:#111827;color:#fff;padding:20px}
+    .side .brand{color:#fff;font-size:24px;text-align:left;margin-bottom:0}
+    .menu button{width:100%;text-align:left;background:transparent;color:#fff;border:1px solid rgba(255,255,255,.08);margin:0 0 10px;border-radius:12px;padding:12px 14px}
+    .menu button.active,.menu button:hover{background:rgba(255,255,255,.08)}
+    .main{padding:22px}
+    .top{display:flex;justify-content:space-between;gap:12px;align-items:center;flex-wrap:wrap;margin-bottom:18px}
+    .title{font-size:28px;font-weight:700}
+    .muted{color:var(--muted)}
+    .grid4{display:grid;grid-template-columns:repeat(4,1fr);gap:14px}
+    .grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}
+    .kpi{padding:18px}
+    .kpi .label{font-size:14px;color:var(--muted);margin-bottom:8px}
+    .kpi .value{font-size:30px;font-weight:700}
+    .section{margin-top:16px}
+    .twocol{display:grid;grid-template-columns:1.1fr .9fr;gap:16px}
+    table{width:100%;border-collapse:collapse}
+    th,td{padding:10px;border-bottom:1px solid var(--line);text-align:left;font-size:14px}
+    th{background:#f8fafc}
+    .pad{padding:18px}
+    .formgrid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}
+    .actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:12px}
+    .badge{display:inline-block;padding:4px 10px;border-radius:999px;font-size:12px;font-weight:700}
+    .ok{background:#dcfce7;color:var(--ok)}
+    .warn{background:#fef3c7;color:var(--warn)}
+    .bad{background:#fee2e2;color:var(--bad)}
+    .footer-note{font-size:13px;color:var(--muted);margin-top:8px}
+    .money{text-align:right}
+    @media (max-width:1100px){.grid4,.grid3{grid-template-columns:repeat(2,1fr)}.twocol,.formgrid{grid-template-columns:1fr 1fr}}
+    @media (max-width:760px){.app{grid-template-columns:1fr}.grid4,.grid3,.twocol,.formgrid{grid-template-columns:1fr}.main{padding:14px}}
+  </style>
+</head>
+<body>
+  <div id="loginScreen" class="login-wrap">
+    <div class="login-card">
+      <div class="login-logo">
+        <img src="/logo.png" alt="Logótipo do Talho">
+      </div>
+      <div class="brand">GRUPO BOLHÃO</div>
+      <div class="sub">Gestão profissional de caixa, stock, compras e clientes</div>
+
+      <label class="login-label">Nome do talho</label>
+      <input class="login-input" id="loginUser" value="Bolhão Talho" readonly>
+
+      <div style="height:12px"></div>
+
+      <label class="login-label">PIN</label>
+      <input class="login-input pin" id="loginPass" type="password" maxlength="4" inputmode="numeric" placeholder="••••">
+
+      <div class="actions">
+        <button class="btn" onclick="login()">Entrar</button>
+      </div>
+
+      <div id="loginError" class="login-error">PIN inválido. Tenta novamente.</div>
+      <div class="footer-note">Acesso reservado ao responsável de caixa</div>
+    </div>
+  </div>
+
+  <div id="appScreen" class="app hidden">
+    <aside class="side">
+      <div class="brand">GRUPO BOLHÃO</div>
+      <div class="sub" style="color:#cbd5e1">Gestão do talho sem módulo de vendas</div>
+      <div class="menu">
+        <button class="tab active" data-tab="dashboard">📊 Dashboard</button>
+        <button class="tab" data-tab="caixa">💰 Fecho de Caixa</button>
+        <button class="tab" data-tab="stock">📦 Stock</button>
+        <button class="tab" data-tab="compras">🛒 Artigos a Comprar</button>
+        <button class="tab" data-tab="clientes">👥 Clientes</button>
+        <button onclick="logout()">↩️ Sair</button>
+      </div>
+    </aside>
+
+    <main class="main">
+      <section id="dashboard" class="screen">
+        <div class="top">
+          <div>
+            <div class="title">Dashboard</div>
+            <div class="muted">Resumo do caixa do talho, congelados, stock e compras</div>
+          </div>
+        </div>
+        <div class="grid4">
+          <div class="card kpi"><div class="label">Caixa Real Talho</div><div class="value" id="kReal">€ 0,00</div></div>
+          <div class="card kpi"><div class="label">Caixa Real Congelados</div><div class="value" id="kTeorico">€ 0,00</div></div>
+          <div class="card kpi"><div class="label">Dif. Talho</div><div class="value" id="kDiff">€ 0,00</div></div>
+          <div class="card kpi"><div class="label">Artigos a Comprar</div><div class="value" id="kPend">0</div></div>
+        </div>
+
+        <div class="twocol section">
+          <div class="card pad">
+            <h3>Resumo de caixa</h3>
+            <table>
+              <tbody>
+                <tr><th>Talho - Caixa real</th><td class="money" id="dRealTalho">€ 0,00</td></tr>
+                <tr><th>Talho - Saldo teórico</th><td class="money" id="dExpectedTalho">€ 0,00</td></tr>
+                <tr><th>Talho - Diferença</th><td class="money" id="dDiffTalho">€ 0,00</td></tr>
+                <tr><th>Congelados - Caixa real</th><td class="money" id="dRealCong">€ 0,00</td></tr>
+                <tr><th>Congelados - Saldo teórico</th><td class="money" id="dExpectedCong">€ 0,00</td></tr>
+                <tr><th>Congelados - Diferença</th><td class="money" id="dDiffCong">€ 0,00</td></tr>
+                <tr><th>Total artigos a comprar</th><td class="money" id="dCompras">0</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <div class="card pad">
+            <h3>Alertas rápidos</h3>
+            <table id="tblLow">
+              <thead><tr><th>Tipo</th><th>Detalhe</th><th>Estado</th></tr></thead>
+              <tbody></tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <section id="caixa" class="screen hidden">
+        <div class="top">
+          <div>
+            <div class="title">Fecho de Caixa</div>
+            <div class="muted">Separado por Talho e Congelados, com contagem de notas e moedas</div>
+          </div>
+        </div>
+
+        <div class="twocol">
+          <div class="card pad">
+            <h3>Fecho de Caixa - Talho</h3>
+            <div class="formgrid">
+              <div><label>Data</label><input type="date" id="cashDateTalho"></div>
+              <div><label>Fundo inicial (€)</label><input type="number" step="0.01" id="cashStartTalho" value="100"></div>
+              <div><label>Entradas dinheiro (€)</label><input type="number" step="0.01" id="cashInCashTalho" value="0"></div>
+              <div><label>Entradas multibanco (€)</label><input type="number" step="0.01" id="cashInMbTalho" value="0"></div>
+              <div><label>Entradas MBWay (€)</label><input type="number" step="0.01" id="cashInMbwayTalho" value="0"></div>
+              <div><label>Outras entradas (€)</label><input type="number" step="0.01" id="cashInOtherTalho" value="0"></div>
+              <div><label>Saídas (€)</label><input type="number" step="0.01" id="cashOutTalho" value="0"></div>
+              <div><label>Observações</label><input id="cashObsTalho" placeholder="Ex: fornecedor, trocos, etc."></div>
+            </div>
+
+            <div class="twocol section">
+              <div>
+                <h4>Notas</h4>
+                <table>
+                  <thead><tr><th>Nota</th><th>Qtd</th><th>Total</th></tr></thead>
+                  <tbody id="notesBodyTalho"></tbody>
+                </table>
+              </div>
+              <div>
+                <h4>Moedas</h4>
+                <table>
+                  <thead><tr><th>Moeda</th><th>Qtd</th><th>Total</th></tr></thead>
+                  <tbody id="coinsBodyTalho"></tbody>
+                </table>
+              </div>
+            </div>
+
+            <div class="grid3 section">
+              <div><label>Total notas (€)</label><input id="totalNotesTalho" disabled></div>
+              <div><label>Total moedas (€)</label><input id="totalCoinsTalho" disabled></div>
+              <div><label>Caixa real contada (€)</label><input id="cashRealTalho" disabled></div>
+              <div><label>Saldo teórico (€)</label><input id="cashExpectedTalho" disabled></div>
+              <div><label>Diferença (€)</label><input id="cashDiffTalho" disabled></div>
+              <div><label>Estado</label><input id="cashStatusTalho" disabled></div>
+            </div>
+          </div>
+
+          <div class="card pad">
+            <h3>Fecho de Caixa - Congelados</h3>
+            <div class="formgrid">
+              <div><label>Data</label><input type="date" id="cashDateCong"></div>
+              <div><label>Fundo inicial (€)</label><input type="number" step="0.01" id="cashStartCong" value="100"></div>
+              <div><label>Entradas dinheiro (€)</label><input type="number" step="0.01" id="cashInCashCong" value="0"></div>
+              <div><label>Entradas multibanco (€)</label><input type="number" step="0.01" id="cashInMbCong" value="0"></div>
+              <div><label>Entradas MBWay (€)</label><input type="number" step="0.01" id="cashInMbwayCong" value="0"></div>
+              <div><label>Outras entradas (€)</label><input type="number" step="0.01" id="cashInOtherCong" value="0"></div>
+              <div><label>Saídas (€)</label><input type="number" step="0.01" id="cashOutCong" value="0"></div>
+              <div><label>Observações</label><input id="cashObsCong" placeholder="Ex: fornecedor, trocos, etc."></div>
+            </div>
+
+            <div class="twocol section">
+              <div>
+                <h4>Notas</h4>
+                <table>
+                  <thead><tr><th>Nota</th><th>Qtd</th><th>Total</th></tr></thead>
+                  <tbody id="notesBodyCong"></tbody>
+                </table>
+              </div>
+              <div>
+                <h4>Moedas</h4>
+                <table>
+                  <thead><tr><th>Moeda</th><th>Qtd</th><th>Total</th></tr></thead>
+                  <tbody id="coinsBodyCong"></tbody>
+                </table>
+              </div>
+            </div>
+
+            <div class="grid3 section">
+              <div><label>Total notas (€)</label><input id="totalNotesCong" disabled></div>
+              <div><label>Total moedas (€)</label><input id="totalCoinsCong" disabled></div>
+              <div><label>Caixa real contada (€)</label><input id="cashRealCong" disabled></div>
+              <div><label>Saldo teórico (€)</label><input id="cashExpectedCong" disabled></div>
+              <div><label>Diferença (€)</label><input id="cashDiffCong" disabled></div>
+              <div><label>Estado</label><input id="cashStatusCong" disabled></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="actions section">
+          <button class="btn" onclick="calcCashAll()">Calcular ambos</button>
+          <button class="btn sec" onclick="saveCashAll()">Guardar ambos os fechos</button>
+        </div>
+      </section>
+
+      <section id="stock" class="screen hidden">
+        <div class="top"><div><div class="title">Stock</div><div class="muted">Produtos e alerta automático</div></div></div>
+        <div class="card pad">
+          <div class="formgrid">
+            <div><label>Produto</label><input id="stockName"></div>
+            <div><label>Quantidade</label><input type="number" step="0.01" id="stockQty"></div>
+            <div><label>Unidade</label><select id="stockUnit"><option>kg</option><option>unid</option><option>cx</option></select></div>
+            <div><label>Mínimo</label><input type="number" step="0.01" id="stockMin" value="5"></div>
+          </div>
+          <div class="actions"><button class="btn" onclick="addStock()">Guardar produto</button></div>
+        </div>
+        <div class="card pad section">
+          <table id="tblStock">
+            <thead><tr><th>Produto</th><th>Qtd</th><th>Unid</th><th>Mínimo</th><th>Estado</th></tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </section>
+
+      <section id="compras" class="screen hidden">
+        <div class="top"><div><div class="title">Artigos a Comprar</div><div class="muted">Lista de reposição vinda do Excel e guardada no servidor</div></div></div>
+
+        <div class="card pad">
+          <div class="formgrid">
+            <div>
+              <label>Artigo</label>
+              <select id="buyArticleCode" onchange="fillBuyArticle()">
+                <option value="">Selecionar artigo</option>
+              </select>
+            </div>
+            <div>
+              <label>Nome do artigo</label>
+              <input id="buyItem" readonly>
+            </div>
+            <div>
+              <label>Fornecedor</label>
+              <select id="buySupplierCode">
+                <option value="">Selecionar fornecedor</option>
+              </select>
+            </div>
+            <div>
+              <label>Quantidade a comprar</label>
+              <input type="number" step="0.01" id="buyQty">
+            </div>
+            <div>
+              <label>Quantidade comprada</label>
+              <input type="number" step="0.01" id="buyBoughtQty" value="0">
+            </div>
+            <div>
+              <label>Unidade</label>
+              <select id="buyUnit"><option>kg</option><option>unid</option><option>cx</option></select>
+            </div>
+            <div>
+              <label>Prioridade</label>
+              <select id="buyPriority"><option>Alta</option><option>Média</option><option>Baixa</option></select>
+            </div>
+            <div style="display:flex;align-items:end">
+              <button class="btn" style="width:100%" onclick="addBuyItem()">Guardar artigo</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="card pad section">
+          <table id="tblBuy">
+            <thead>
+              <tr>
+                <th>Cód. Artigo</th>
+                <th>Artigo</th>
+                <th>Cód. Fornecedor</th>
+                <th>Fornecedor</th>
+                <th>Qtd. Comprar</th>
+                <th>Qtd. Comprada</th>
+                <th>Unidade</th>
+                <th>Prioridade</th>
+                <th>Estado</th>
+              </tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </section>
+
+      <section id="clientes" class="screen hidden">
+        <div class="top"><div><div class="title">Clientes</div><div class="muted">Lista simples de clientes</div></div></div>
+        <div class="card pad">
+          <div class="formgrid">
+            <div><label>Nome</label><input id="cliName"></div>
+            <div><label>Telemóvel</label><input id="cliPhone"></div>
+            <div><label>Observação</label><input id="cliNote" placeholder="Ex: encomenda habitual"></div>
+            <div style="display:flex;align-items:end"><button class="btn" style="width:100%" onclick="addClient()">Guardar cliente</button></div>
+          </div>
+        </div>
+        <div class="card pad section">
+          <table id="tblClients">
+            <thead><tr><th>Nome</th><th>Telemóvel</th><th>Observação</th></tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </section>
+    </main>
+  </div>
+
+<script>
+const euro = v => new Intl.NumberFormat('pt-PT',{style:'currency',currency:'EUR'}).format(Number(v||0));
+
+let stock = [];
+let buyItems = [];
+let clients = [];
+let excelArticles = [];
+let excelSuppliers = [];
+
+let cashCloseTalho = {
+  date:'', start:100, inCash:0, inMb:0, inMbway:0, inOther:0, out:0, obs:'',
+  notes:{500:0,200:0,100:0,50:0,20:0,10:0,5:0},
+  coins:{2:0,1:0,0.5:0,0.2:0,0.1:0,0.05:0,0.02:0,0.01:0}
+};
+let cashCloseCong = {
+  date:'', start:100, inCash:0, inMb:0, inMbway:0, inOther:0, out:0, obs:'',
+  notes:{500:0,200:0,100:0,50:0,20:0,10:0,5:0},
+  coins:{2:0,1:0,0.5:0,0.2:0,0.1:0,0.05:0,0.02:0,0.01:0}
+};
+
+const noteValues = [500,200,100,50,20,10,5];
+const coinValues = [2,1,0.5,0.2,0.1,0.05,0.02,0.01];
+
+function todayISO(){ return new Date().toISOString().slice(0,10); }
+
+async function loadServerData(){
+  const [stockRes, buyRes, clientsRes, cashRes, articlesRes, suppliersRes] = await Promise.all([
+    fetch('/api/stock'),
+    fetch('/api/purchases'),
+    fetch('/api/clients'),
+    fetch('/api/cash-state'),
+    fetch('/api/master/articles'),
+    fetch('/api/master/suppliers')
+  ]);
+
+  stock = stockRes.ok ? await stockRes.json() : [];
+  buyItems = buyRes.ok ? await buyRes.json() : [];
+  clients = clientsRes.ok ? await clientsRes.json() : [];
+  excelArticles = articlesRes.ok ? await articlesRes.json() : [];
+  excelSuppliers = suppliersRes.ok ? await suppliersRes.json() : [];
+
+  if (cashRes.ok) {
+    const cash = await cashRes.json();
+    cashCloseTalho = cash.talho || cashCloseTalho;
+    cashCloseCong = cash.cong || cashCloseCong;
+  }
+
+  populateBuySelectors();
 }
+
+function populateBuySelectors(){
+  const articleSel = document.getElementById('buyArticleCode');
+  const supplierSel = document.getElementById('buySupplierCode');
+
+  articleSel.innerHTML = '<option value="">Selecionar artigo</option>' +
+    excelArticles.map(a => `<option value="${a.code}">${a.code} - ${a.name}</option>`).join('');
+
+  supplierSel.innerHTML = '<option value="">Selecionar fornecedor</option>' +
+    excelSuppliers.map(s => `<option value="${s.code}">${s.code} - ${s.name}</option>`).join('');
+}
+
+function fillBuyArticle(){
+  const code = document.getElementById('buyArticleCode').value;
+  const article = excelArticles.find(a => a.code === code);
+  document.getElementById('buyItem').value = article ? article.name : '';
+}
+
+async function login(){
+  const p = document.getElementById('loginPass').value.trim();
+  const errorBox = document.getElementById('loginError');
+
+  try {
+    errorBox.style.display = 'none';
+
+    const res = await fetch('/api/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ pin: p })
+    });
+
+    if (res.ok) {
+      document.getElementById('loginScreen').classList.add('hidden');
+      document.getElementById('appScreen').classList.remove('hidden');
+      document.getElementById('loginPass').value = '';
+      await loadServerData();
+      initCashInputs();
+      renderAll();
+    } else {
+      errorBox.textContent = 'PIN inválido. Tenta novamente.';
+      errorBox.style.display = 'block';
+    }
+  } catch (err) {
+    errorBox.textContent = 'Erro ao iniciar sessão.';
+    errorBox.style.display = 'block';
+  }
+}
+
+async function logout(){
+  const ok = confirm('Tens a certeza que queres sair da aplicação?');
+  if (!ok) return;
+
+  try {
+    await fetch('/api/logout', { method: 'POST' });
+  } catch (err) {}
+
+  document.getElementById('appScreen').classList.add('hidden');
+  document.getElementById('loginScreen').classList.remove('hidden');
+  document.getElementById('loginPass').value = '';
+  document.getElementById('loginError').style.display = 'none';
+}
+
+document.querySelectorAll('.tab').forEach(btn=>{
+  btn.addEventListener('click', ()=>{
+    document.querySelectorAll('.tab').forEach(b=>b.classList.remove('active'));
+    document.querySelectorAll('.screen').forEach(s=>s.classList.add('hidden'));
+    btn.classList.add('active');
+    document.getElementById(btn.dataset.tab).classList.remove('hidden');
+    renderAll();
+  });
+});
+
+function buildMoneyTables(section, cashData){
+  const nb = document.getElementById('notesBody' + section);
+  const cb = document.getElementById('coinsBody' + section);
+  nb.innerHTML = '';
+  cb.innerHTML = '';
+  noteValues.forEach(v=>{
+    nb.innerHTML += `<tr>
+      <td>${euro(v)}</td>
+      <td><input type="number" min="0" step="1" id="note_${section}_${v}" value="${cashData.notes[v] || 0}" oninput="calcCashSection('${section}')"></td>
+      <td class="money" id="note_total_${section}_${v}">${euro((cashData.notes[v] || 0) * v)}</td>
+    </tr>`;
+  });
+  coinValues.forEach(v=>{
+    const id = String(v).replace('.','_');
+    cb.innerHTML += `<tr>
+      <td>${euro(v)}</td>
+      <td><input type="number" min="0" step="1" id="coin_${section}_${id}" value="${cashData.coins[v] || 0}" oninput="calcCashSection('${section}')"></td>
+      <td class="money" id="coin_total_${section}_${id}">${euro((cashData.coins[v] || 0) * v)}</td>
+    </tr>`;
+  });
+}
+
+function initCashInputs(){
+  document.getElementById('cashDateTalho').value = cashCloseTalho.date || todayISO();
+  document.getElementById('cashStartTalho').value = cashCloseTalho.start || 0;
+  document.getElementById('cashInCashTalho').value = cashCloseTalho.inCash || 0;
+  document.getElementById('cashInMbTalho').value = cashCloseTalho.inMb || 0;
+  document.getElementById('cashInMbwayTalho').value = cashCloseTalho.inMbway || 0;
+  document.getElementById('cashInOtherTalho').value = cashCloseTalho.inOther || 0;
+  document.getElementById('cashOutTalho').value = cashCloseTalho.out || 0;
+  document.getElementById('cashObsTalho').value = cashCloseTalho.obs || '';
+
+  document.getElementById('cashDateCong').value = cashCloseCong.date || todayISO();
+  document.getElementById('cashStartCong').value = cashCloseCong.start || 0;
+  document.getElementById('cashInCashCong').value = cashCloseCong.inCash || 0;
+  document.getElementById('cashInMbCong').value = cashCloseCong.inMb || 0;
+  document.getElementById('cashInMbwayCong').value = cashCloseCong.inMbway || 0;
+  document.getElementById('cashInOtherCong').value = cashCloseCong.inOther || 0;
+  document.getElementById('cashOutCong').value = cashCloseCong.out || 0;
+  document.getElementById('cashObsCong').value = cashCloseCong.obs || '';
+
+  buildMoneyTables('Talho', cashCloseTalho);
+  buildMoneyTables('Cong', cashCloseCong);
+  calcCashAll();
+}
+
+function getCashData(section){
+  return section === 'Talho' ? cashCloseTalho : cashCloseCong;
+}
+
+function readCashInputs(section){
+  const data = getCashData(section);
+  data.date = document.getElementById('cashDate' + section).value;
+  data.start = parseFloat(document.getElementById('cashStart' + section).value || 0);
+  data.inCash = parseFloat(document.getElementById('cashInCash' + section).value || 0);
+  data.inMb = parseFloat(document.getElementById('cashInMb' + section).value || 0);
+  data.inMbway = parseFloat(document.getElementById('cashInMbway' + section).value || 0);
+  data.inOther = parseFloat(document.getElementById('cashInOther' + section).value || 0);
+  data.out = parseFloat(document.getElementById('cashOut' + section).value || 0);
+  data.obs = document.getElementById('cashObs' + section).value.trim();
+  noteValues.forEach(v => {
+    data.notes[v] = parseInt(document.getElementById('note_' + section + '_' + v).value || 0, 10);
+  });
+  coinValues.forEach(v => {
+    const id = String(v).replace('.','_');
+    data.coins[v] = parseInt(document.getElementById('coin_' + section + '_' + id).value || 0, 10);
+  });
+}
+
+function calcCashSection(section){
+  readCashInputs(section);
+  const data = getCashData(section);
+  let totalNotes = 0;
+  let totalCoins = 0;
+
+  noteValues.forEach(v=>{
+    const t = (data.notes[v] || 0) * v;
+    totalNotes += t;
+    document.getElementById('note_total_' + section + '_' + v).textContent = euro(t);
+  });
+  coinValues.forEach(v=>{
+    const t = (data.coins[v] || 0) * v;
+    totalCoins += t;
+    const id = String(v).replace('.','_');
+    document.getElementById('coin_total_' + section + '_' + id).textContent = euro(t);
+  });
+
+  const real = totalNotes + totalCoins;
+  const expected = data.start + data.inCash + data.inMb + data.inMbway + data.inOther - data.out;
+  const diff = real - expected;
+  const status = Math.abs(diff) < 0.01 ? 'Certo' : (diff > 0 ? 'Sobra em caixa' : 'Falta em caixa');
+
+  document.getElementById('totalNotes' + section).value = euro(totalNotes);
+  document.getElementById('totalCoins' + section).value = euro(totalCoins);
+  document.getElementById('cashReal' + section).value = euro(real);
+  document.getElementById('cashExpected' + section).value = euro(expected);
+  document.getElementById('cashDiff' + section).value = euro(diff);
+  document.getElementById('cashStatus' + section).value = status;
+
+  return {real, expected, diff, status};
+}
+
+function calcCashAll(){
+  const talho = calcCashSection('Talho');
+  const cong = calcCashSection('Cong');
+  renderDashboardCash(talho, cong);
+}
+
+async function saveCashAll(){
+  calcCashAll();
+
+  const payload = {
+    talho: cashCloseTalho,
+    cong: cashCloseCong
+  };
+
+  const res = await fetch('/api/cash-state', {
+    method: 'POST',
+    headers: {'Content-Type':'application/json'},
+    body: JSON.stringify(payload)
+  });
+
+  if(res.ok){
+    alert('Fechos de caixa guardados no servidor.');
+  } else {
+    alert('Erro ao guardar fechos.');
+  }
+}
+
+async function addStock(){
+  const item = {
+    name: document.getElementById('stockName').value.trim(),
+    qty: parseFloat(document.getElementById('stockQty').value || 0),
+    unit: document.getElementById('stockUnit').value,
+    min: parseFloat(document.getElementById('stockMin').value || 0)
+  };
+
+  if(!item.name){
+    alert('Indica o produto.');
+    return;
+  }
+
+  const res = await fetch('/api/stock', {
+    method: 'POST',
+    headers: {'Content-Type':'application/json'},
+    body: JSON.stringify(item)
+  });
+
+  if(!res.ok){
+    alert('Erro ao guardar produto.');
+    return;
+  }
+
+  document.getElementById('stockName').value = '';
+  document.getElementById('stockQty').value = '';
+  await loadServerData();
+  renderAll();
+}
+
+async function addBuyItem(){
+  const articleCode = document.getElementById('buyArticleCode').value;
+  const supplierCode = document.getElementById('buySupplierCode').value;
+  const article = excelArticles.find(a => a.code === articleCode);
+  const supplier = excelSuppliers.find(s => s.code === supplierCode);
+
+  if(!articleCode || !article){
+    alert('Seleciona um artigo.');
+    return;
+  }
+
+  if(!supplierCode || !supplier){
+    alert('Seleciona um fornecedor.');
+    return;
+  }
+
+  const item = {
+    code: article.code,
+    name: article.name,
+    supplier_code: supplier.code,
+    supplier: supplier.name,
+    qty_to_buy: parseFloat(document.getElementById('buyQty').value || 0),
+    qty_bought: parseFloat(document.getElementById('buyBoughtQty').value || 0),
+    unit: document.getElementById('buyUnit').value,
+    priority: document.getElementById('buyPriority').value
+  };
+
+  const res = await fetch('/api/purchases', {
+    method: 'POST',
+    headers: {'Content-Type':'application/json'},
+    body: JSON.stringify(item)
+  });
+
+  if(!res.ok){
+    alert('Erro ao guardar artigo.');
+    return;
+  }
+
+  document.getElementById('buyArticleCode').value = '';
+  document.getElementById('buyItem').value = '';
+  document.getElementById('buySupplierCode').value = '';
+  document.getElementById('buyQty').value = '';
+  document.getElementById('buyBoughtQty').value = '0';
+
+  await loadServerData();
+  renderAll();
+}
+
+async function addClient(){
+  const c = {
+    name: document.getElementById('cliName').value.trim(),
+    phone: document.getElementById('cliPhone').value.trim(),
+    note: document.getElementById('cliNote').value.trim()
+  };
+
+  if(!c.name){
+    alert('Indica o nome do cliente.');
+    return;
+  }
+
+  const res = await fetch('/api/clients', {
+    method: 'POST',
+    headers: {'Content-Type':'application/json'},
+    body: JSON.stringify(c)
+  });
+
+  if(!res.ok){
+    alert('Erro ao guardar cliente.');
+    return;
+  }
+
+  document.getElementById('cliName').value = '';
+  document.getElementById('cliPhone').value = '';
+  document.getElementById('cliNote').value = '';
+  await loadServerData();
+  renderAll();
+}
+
+function renderDashboardCash(talho, cong){
+  document.getElementById('kReal').textContent = euro(talho.real);
+  document.getElementById('kTeorico').textContent = euro(cong.real);
+  document.getElementById('kDiff').textContent = euro(talho.diff);
+  document.getElementById('kPend').textContent = buyItems.length;
+
+  document.getElementById('dRealTalho').textContent = euro(talho.real);
+  document.getElementById('dExpectedTalho').textContent = euro(talho.expected);
+  document.getElementById('dDiffTalho').textContent = euro(talho.diff);
+  document.getElementById('dRealCong').textContent = euro(cong.real);
+  document.getElementById('dExpectedCong').textContent = euro(cong.expected);
+  document.getElementById('dDiffCong').textContent = euro(cong.diff);
+  document.getElementById('dCompras').textContent = String(buyItems.length);
+}
+
+function renderStock(){
+  const tb = document.querySelector('#tblStock tbody');
+  tb.innerHTML = '';
+  stock.forEach(s=>{
+    const status = s.qty <= s.min ? '<span class="badge warn">Baixo</span>' : '<span class="badge ok">OK</span>';
+    tb.innerHTML += `<tr><td>${s.name}</td><td>${s.qty}</td><td>${s.unit}</td><td>${s.min}</td><td>${status}</td></tr>`;
+  });
+  if(!tb.innerHTML) tb.innerHTML = '<tr><td colspan="5" class="muted">Sem produtos.</td></tr>';
+}
+
+function renderBuyItems(){
+  const tb = document.querySelector('#tblBuy tbody');
+  tb.innerHTML = '';
+  buyItems.forEach(o=>{
+    const cls = o.priority === 'Alta' ? 'bad' : (o.priority === 'Média' ? 'warn' : 'ok');
+    const estado = Number(o.qty_bought || 0) <= 0
+      ? '<span class="badge bad">Por comprar</span>'
+      : Number(o.qty_bought || 0) < Number(o.qty_to_buy || 0)
+      ? '<span class="badge warn">Parcial</span>'
+      : '<span class="badge ok">Comprado</span>';
+
+    tb.innerHTML += `<tr>
+      <td>${o.code || ''}</td>
+      <td>${o.name}</td>
+      <td>${o.supplier_code || ''}</td>
+      <td>${o.supplier || ''}</td>
+      <td>${o.qty_to_buy}</td>
+      <td>${o.qty_bought}</td>
+      <td>${o.unit || ''}</td>
+      <td><span class="badge ${cls}">${o.priority}</span></td>
+      <td>${estado}</td>
+    </tr>`;
+  });
+  if(!tb.innerHTML) tb.innerHTML = '<tr><td colspan="9" class="muted">Sem artigos em falta.</td></tr>';
+}
+
+function renderClients(){
+  const tb = document.querySelector('#tblClients tbody');
+  tb.innerHTML = '';
+  clients.forEach(c=>{
+    tb.innerHTML += `<tr><td>${c.name}</td><td>${c.phone}</td><td>${c.note}</td></tr>`;
+  });
+  if(!tb.innerHTML) tb.innerHTML = '<tr><td colspan="3" class="muted">Sem clientes.</td></tr>';
+}
+
+function renderAlerts(){
+  const tb = document.querySelector('#tblLow tbody');
+  tb.innerHTML = '';
+  const lowItems = stock.filter(s => s.qty <= s.min);
+  lowItems.forEach(s=>{
+    tb.innerHTML += `<tr><td>Stock</td><td>${s.name} com ${s.qty} ${s.unit}</td><td><span class="badge warn">Baixo</span></td></tr>`;
+  });
+  const pend = buyItems.filter(i => Number(i.qty_bought || 0) < Number(i.qty_to_buy || 0)).length;
+  if(pend > 0){
+    tb.innerHTML += `<tr><td>Compras</td><td>${pend} artigo(s) por concluir</td><td><span class="badge bad">Atenção</span></td></tr>`;
+  }
+  const talhoDiffText = document.getElementById('cashDiffTalho').value || euro(0);
+  const congDiffText = document.getElementById('cashDiffCong').value || euro(0);
+  if(talhoDiffText !== euro(0) || congDiffText !== euro(0)){
+    tb.innerHTML += `<tr><td>Caixa</td><td>Verificar diferença no talho e/ou congelados</td><td><span class="badge bad">Verificar</span></td></tr>`;
+  }
+  if(!tb.innerHTML) tb.innerHTML = '<tr><td colspan="3" class="muted">Sem alertas.</td></tr>';
+}
+
+function renderAll(){
+  renderStock();
+  renderBuyItems();
+  renderClients();
+  calcCashAll();
+  renderAlerts();
+}
+
+window.addEventListener('load', async () => {
+  try {
+    const res = await fetch('/api/status');
+    const status = res.ok ? await res.json() : { logged_in: false };
+    if (status.logged_in) {
+      document.getElementById('loginScreen').classList.add('hidden');
+      document.getElementById('appScreen').classList.remove('hidden');
+      await loadServerData();
+      initCashInputs();
+      renderAll();
+    }
+  } catch (e) {}
+});
 </script>
 </body>
 </html>
