@@ -438,28 +438,38 @@ const coinValues = [2,1,0.5,0.2,0.1,0.05,0.02,0.01];
 function todayISO(){ return new Date().toISOString().slice(0,10); }
 
 async function loadServerData(){
-  const [stockRes, buyRes, clientsRes, cashRes, articlesRes, suppliersRes] = await Promise.all([
-    fetch('/api/stock'),
-    fetch('/api/purchases'),
-    fetch('/api/clients'),
-    fetch('/api/cash-state'),
-    fetch('/api/master/articles'),
-    fetch('/api/master/suppliers')
-  ]);
+  try {
+    const [stockRes, buyRes, clientsRes, cashRes, articlesRes, suppliersRes] = await Promise.all([
+      fetch('/api/stock'),
+      fetch('/api/purchases'),
+      fetch('/api/clients'),
+      fetch('/api/cash-state'),
+      fetch('/api/master/articles'),
+      fetch('/api/master/suppliers')
+    ]);
 
-  stock = stockRes.ok ? await stockRes.json() : [];
-  buyItems = buyRes.ok ? await buyRes.json() : [];
-  clients = clientsRes.ok ? await clientsRes.json() : [];
-  excelArticles = articlesRes.ok ? await articlesRes.json() : [];
-  excelSuppliers = suppliersRes.ok ? await suppliersRes.json() : [];
+    if (!stockRes.ok) throw new Error('/api/stock falhou');
+    if (!buyRes.ok) throw new Error('/api/purchases falhou');
+    if (!clientsRes.ok) throw new Error('/api/clients falhou');
+    if (!cashRes.ok) throw new Error('/api/cash-state falhou');
+    if (!articlesRes.ok) throw new Error('/api/master/articles falhou');
+    if (!suppliersRes.ok) throw new Error('/api/master/suppliers falhou');
 
-  if (cashRes.ok) {
+    stock = await stockRes.json();
+    buyItems = await buyRes.json();
+    clients = await clientsRes.json();
+    excelArticles = await articlesRes.json();
+    excelSuppliers = await suppliersRes.json();
+
     const cash = await cashRes.json();
     cashCloseTalho = cash.talho || cashCloseTalho;
     cashCloseCong = cash.cong || cashCloseCong;
-  }
 
-  populateBuySelectors();
+    populateBuySelectors();
+  } catch (err) {
+    alert('Erro de ligação ao servidor: ' + err.message);
+    console.error(err);
+  }
 }
 
 function populateBuySelectors(){
