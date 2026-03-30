@@ -2,7 +2,7 @@ from flask import Flask, send_from_directory, request, jsonify, session
 import os
 import json
 import threading
-from datetime import date
+import unicodedata
 from openpyxl import load_workbook
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -93,45 +93,68 @@ def parse_amount(value) -> float:
     return round(float(str(value).replace(',', '.')), 2)
 
 
+def normalize_text(value):
+    text = str(value or '').strip().lower()
+    text = unicodedata.normalize('NFKD', text).encode('ascii', 'ignore').decode('ascii')
+    return text
+
+
+def find_sheet_name(workbook, expected_name):
+    expected = normalize_text(expected_name)
+    for sheet_name in workbook.sheetnames:
+        if normalize_text(sheet_name) == expected:
+            return sheet_name
+    return None
+
+
 def load_excel_master():
     if not os.path.exists(EXCEL_PATH):
         return {'articles': [], 'suppliers': []}
 
     wb = load_workbook(EXCEL_PATH, data_only=True)
+
     articles = []
     suppliers = []
 
-    if 'artigos' in wb.sheetnames:
-        ws = wb['artigos']
+    artigos_sheet = find_sheet_name(wb, 'artigos')
+    fornecedores_sheet = find_sheet_name(wb, 'fornecedores')
+
+    if artigos_sheet:
+        ws = wb[artigos_sheet]
         rows = list(ws.iter_rows(values_only=True))
         if rows:
-            headers = [str(h).strip().lower() if h is not None else '' for h in rows[0]]
+            headers = [normalize_text(h) for h in rows[0]]
             for row in rows[1:]:
                 item = dict(zip(headers, row))
                 code = str(item.get('codigo', '') or '').strip()
                 name = str(item.get('nome', '') or '').strip()
-                if code or name:
+
+                if code and name:
                     articles.append({
                         'code': code,
                         'name': name
                     })
 
-    if 'fornecedores' in wb.sheetnames:
-        ws = wb['fornecedores']
+    if fornecedores_sheet:
+        ws = wb[fornecedores_sheet]
         rows = list(ws.iter_rows(values_only=True))
         if rows:
-            headers = [str(h).strip().lower() if h is not None else '' for h in rows[0]]
+            headers = [normalize_text(h) for h in rows[0]]
             for row in rows[1:]:
                 item = dict(zip(headers, row))
                 code = str(item.get('codigo', '') or '').strip()
                 name = str(item.get('nome', '') or '').strip()
-                if code or name:
+
+                if code and name:
                     suppliers.append({
                         'code': code,
                         'name': name
                     })
 
-    return {'articles': articles, 'suppliers': suppliers}
+    return {
+        'articles': articles,
+        'suppliers': suppliers
+    }
 
 
 @app.route('/')
