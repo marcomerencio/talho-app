@@ -1,13 +1,21 @@
-from flask import Flask, send_from_directory, request, jsonify, session
+from flask import Flask, send_from_directory, request, jsonify, session, send_file
 import os
 import json
 import threading
 import unicodedata
-from openpyxl import load_workbook
+from io import BytesIO
+from datetime import datetime
+from openpyxl import load_workbook, Workbook
+from reportlab.lib.pagesizes import A4
+from reportlab.pdfgen import canvas
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 STATIC_DIR = os.path.join(BASE_DIR, 'static')
 DATA_DIR = os.path.join(BASE_DIR, 'data')
+EXPORTS_DIR = os.path.join(BASE_DIR, 'exports')
+PURCHASES_EXPORT_DIR = os.path.join(EXPORTS_DIR, 'compras')
+CASH_EXPORT_DIR = os.path.join(EXPORTS_DIR, 'fechos_caixa')
+
 DB_PATH = os.path.join(DATA_DIR, 'db.json')
 EXCEL_PATH = os.path.join(DATA_DIR, 'base_sage.xlsx')
 LOCK = threading.Lock()
@@ -52,8 +60,14 @@ DEFAULT_DB = {
 }
 
 
-def ensure_db() -> None:
+def ensure_dirs() -> None:
     os.makedirs(DATA_DIR, exist_ok=True)
+    os.makedirs(PURCHASES_EXPORT_DIR, exist_ok=True)
+    os.makedirs(CASH_EXPORT_DIR, exist_ok=True)
+
+
+def ensure_db() -> None:
+    ensure_dirs()
     if not os.path.exists(DB_PATH):
         with open(DB_PATH, 'w', encoding='utf-8') as f:
             json.dump(DEFAULT_DB, f, ensure_ascii=False, indent=2)
@@ -66,6 +80,7 @@ def load_db() -> dict:
             data = json.load(f)
 
     changed = False
+
     for key, value in DEFAULT_DB.items():
         if key not in data:
             data[key] = value
@@ -86,7 +101,7 @@ def load_db() -> dict:
 
 
 def save_db(data: dict) -> None:
-    os.makedirs(DATA_DIR, exist_ok=True)
+    ensure_dirs()
     with LOCK:
         with open(DB_PATH, 'w', encoding='utf-8') as f:
             json.dump(data, f, ensure_ascii=False, indent=2)
@@ -123,7 +138,6 @@ def load_excel_master():
         return {'articles': [], 'suppliers': []}
 
     wb = load_workbook(EXCEL_PATH, data_only=True)
-
     articles = []
     suppliers = []
 
@@ -139,12 +153,8 @@ def load_excel_master():
                 item = dict(zip(headers, row))
                 code = str(item.get('codigo', '') or '').strip()
                 name = str(item.get('nome', '') or '').strip()
-
                 if code and name:
-                    articles.append({
-                        'code': code,
-                        'name': name
-                    })
+                    articles.append({'code': code, 'name': name})
 
     if fornecedores_sheet:
         ws = wb[fornecedores_sheet]
@@ -155,17 +165,78 @@ def load_excel_master():
                 item = dict(zip(headers, row))
                 code = str(item.get('codigo', '') or '').strip()
                 name = str(item.get('nome', '') or '').strip()
-
                 if code and name:
-                    suppliers.append({
-                        'code': code,
-                        'name': name
-                    })
+                    suppliers.append({'code': code, 'name': name})
+
+    return {'articles': articles, 'suppliers': suppliers}
+
+
+def purchase_state(item: dict) -> str:
+    qty_to_buy = parse_amount(item.get('qty_to_buy', 0))
+    qty_bought = parse_amount(item.get('qty_bought', 0))
+    if qty_bought <= 0:
+        return 'Por comprar'
+    if qty_bought < qty_to_buy:
+        return 'Parcial'
+    return 'Comprado'
+
+
+def calc_cash_summary(section_data: dict) -> dict:
+    notes_total = 0.0
+    coins_total = 0.0
+
+    note_values = {'500': 500, '200': 200, '100': 100, '50': 50, '20': 20, '10': 10, '5': 5}
+    coin_values = {'2': 2, '1': 1, '0.5': 0.5, '0.2': 0.2, '0.1': 0.1, '0.05': 0.05, '0.02': 0.02, '0.01': 0.01}
+
+    for key, value in note_values.items():
+        notes_total += parse_amount(section_data.get('notes', {}).get(key, 0)) * value
+
+    for key, value in coin_values.items():
+        coins_total += parse_amount(section_data.get('coins', {}).get(key, 0)) * value
+
+    real = round(notes_total + coins_total, 2)
+    expected = round(
+        parse_amount(section_data.get('start', 0))
+        + parse_amount(section_data.get('inCash', 0))
+        + parse_amount(section_data.get('inMb', 0))
+        + parse_amount(section_data.get('inMbway', 0))
+        + parse_amount(section_data.get('inOther', 0))
+        - parse_amount(section_data.get('out', 0)),
+        2
+    )
+    diff = round(real - expected, 2)
+
+    status = 'Certo'
+    if abs(diff) >= 0.01:
+        status = 'Sobra em caixa' if diff > 0 else 'Falta em caixa'
 
     return {
-        'articles': articles,
-        'suppliers': suppliers
+        'notes_total': round(notes_total, 2),
+        'coins_total': round(coins_total, 2),
+        'real': real,
+        'expected': expected,
+        'diff': diff,
+        'status': status
     }
+
+
+def save_workbook_to_disk_and_memory(workbook: Workbook, filepath: str):
+    ensure_dirs()
+    workbook.save(filepath)
+    mem = BytesIO()
+    workbook.save(mem)
+    mem.seek(0)
+    return mem
+
+
+def wrap_pdf_text(c: canvas.Canvas, text: str, x: int, y: int, max_chars: int = 95, line_height: int = 16):
+    text = str(text or '')
+    while text:
+        chunk = text[:max_chars]
+        c.drawString(x, y, chunk)
+        y -= line_height
+        text = text[max_chars:]
+    return y
 
 
 @app.route('/')
@@ -353,6 +424,231 @@ def api_cash_state():
     }
     save_db(data)
     return jsonify({'ok': True}), 200
+
+
+@app.route('/api/export/purchases/excel')
+def api_export_purchases_excel():
+    auth = require_login()
+    if auth:
+        return auth
+
+    data = load_db()
+    wb = Workbook()
+    ws = wb.active
+    ws.title = 'compras'
+
+    ws.append([
+        'id', 'codigo_artigo', 'artigo', 'codigo_fornecedor', 'fornecedor',
+        'quantidade_a_comprar', 'quantidade_comprada', 'unidade', 'prioridade', 'estado'
+    ])
+
+    for item in data.get('purchases', []):
+        ws.append([
+            item.get('id'),
+            item.get('code'),
+            item.get('name'),
+            item.get('supplier_code'),
+            item.get('supplier'),
+            item.get('qty_to_buy'),
+            item.get('qty_bought'),
+            item.get('unit'),
+            item.get('priority'),
+            purchase_state(item)
+        ])
+
+    filename = f"compras-{datetime.now().strftime('%Y-%m-%d-%H-%M-%S')}.xlsx"
+    filepath = os.path.join(PURCHASES_EXPORT_DIR, filename)
+    mem = save_workbook_to_disk_and_memory(wb, filepath)
+
+    return send_file(
+        mem,
+        as_attachment=True,
+        download_name=filename,
+        mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+    )
+
+
+@app.route('/api/export/purchases/pdf')
+def api_export_purchases_pdf():
+    auth = require_login()
+    if auth:
+        return auth
+
+    data = load_db()
+    filename = f"compras-{datetime.now().strftime('%Y-%m-%d-%H-%M-%S')}.pdf"
+    filepath = os.path.join(PURCHASES_EXPORT_DIR, filename)
+
+    mem = BytesIO()
+    c = canvas.Canvas(mem, pagesize=A4)
+    width, height = A4
+    y = height - 40
+
+    c.setFont("Helvetica-Bold", 14)
+    c.drawString(40, y, "GRUPO BOLHÃO - Artigos a Comprar")
+    y -= 25
+
+    c.setFont("Helvetica", 10)
+    c.drawString(40, y, f"Gerado em: {datetime.now().strftime('%d/%m/%Y %H:%M:%S')}")
+    y -= 25
+
+    for item in data.get('purchases', []):
+        if y < 100:
+            c.showPage()
+            y = height - 40
+            c.setFont("Helvetica", 10)
+
+        estado = purchase_state(item)
+        lines = [
+            f"Código: {item.get('code', '')} | Artigo: {item.get('name', '')}",
+            f"Fornecedor: {item.get('supplier_code', '')} - {item.get('supplier', '')}",
+            f"Qtd comprar: {item.get('qty_to_buy', 0)} | Qtd comprada: {item.get('qty_bought', 0)} | Unidade: {item.get('unit', '')}",
+            f"Prioridade: {item.get('priority', '')} | Estado: {estado}"
+        ]
+
+        c.setFont("Helvetica-Bold", 10)
+        c.drawString(40, y, f"Artigo #{item.get('id', '')}")
+        y -= 16
+        c.setFont("Helvetica", 10)
+
+        for line in lines:
+            y = wrap_pdf_text(c, line, 50, y, 95, 14)
+
+        y -= 8
+        c.line(40, y, width - 40, y)
+        y -= 14
+
+    c.save()
+    mem.seek(0)
+
+    with open(filepath, 'wb') as f:
+        f.write(mem.getvalue())
+
+    mem.seek(0)
+    return send_file(mem, as_attachment=True, download_name=filename, mimetype='application/pdf')
+
+
+@app.route('/api/export/cash/excel')
+def api_export_cash_excel():
+    auth = require_login()
+    if auth:
+        return auth
+
+    data = load_db()
+    cash_state = data.get('cash_state', DEFAULT_DB['cash_state'])
+
+    wb = Workbook()
+    ws = wb.active
+    ws.title = 'fecho_caixa'
+
+    ws.append([
+        'secao', 'data', 'fundo_inicial', 'entradas_dinheiro', 'entradas_multibanco',
+        'entradas_mbway', 'outras_entradas', 'saidas',
+        'total_notas', 'total_moedas', 'caixa_real', 'saldo_teorico', 'diferenca', 'estado', 'observacoes'
+    ])
+
+    for section_name, label in [('talho', 'Talho'), ('cong', 'Congelados')]:
+        section_data = cash_state.get(section_name, {})
+        summary = calc_cash_summary(section_data)
+        ws.append([
+            label,
+            section_data.get('date', ''),
+            section_data.get('start', 0),
+            section_data.get('inCash', 0),
+            section_data.get('inMb', 0),
+            section_data.get('inMbway', 0),
+            section_data.get('inOther', 0),
+            section_data.get('out', 0),
+            summary['notes_total'],
+            summary['coins_total'],
+            summary['real'],
+            summary['expected'],
+            summary['diff'],
+            summary['status'],
+            section_data.get('obs', '')
+        ])
+
+    filename = f"fecho-caixa-{datetime.now().strftime('%Y-%m-%d-%H-%M-%S')}.xlsx"
+    filepath = os.path.join(CASH_EXPORT_DIR, filename)
+    mem = save_workbook_to_disk_and_memory(wb, filepath)
+
+    return send_file(
+        mem,
+        as_attachment=True,
+        download_name=filename,
+        mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+    )
+
+
+@app.route('/api/export/cash/pdf')
+def api_export_cash_pdf():
+    auth = require_login()
+    if auth:
+        return auth
+
+    data = load_db()
+    cash_state = data.get('cash_state', DEFAULT_DB['cash_state'])
+
+    filename = f"fecho-caixa-{datetime.now().strftime('%Y-%m-%d-%H-%M-%S')}.pdf"
+    filepath = os.path.join(CASH_EXPORT_DIR, filename)
+
+    mem = BytesIO()
+    c = canvas.Canvas(mem, pagesize=A4)
+    width, height = A4
+    y = height - 40
+
+    c.setFont("Helvetica-Bold", 14)
+    c.drawString(40, y, "GRUPO BOLHÃO - Fecho de Caixa")
+    y -= 25
+
+    c.setFont("Helvetica", 10)
+    c.drawString(40, y, f"Gerado em: {datetime.now().strftime('%d/%m/%Y %H:%M:%S')}")
+    y -= 30
+
+    for section_name, label in [('talho', 'Talho'), ('cong', 'Congelados')]:
+        section_data = cash_state.get(section_name, {})
+        summary = calc_cash_summary(section_data)
+
+        if y < 180:
+            c.showPage()
+            y = height - 40
+
+        c.setFont("Helvetica-Bold", 12)
+        c.drawString(40, y, f"Secção: {label}")
+        y -= 18
+
+        c.setFont("Helvetica", 10)
+        lines = [
+            f"Data: {section_data.get('date', '')}",
+            f"Fundo inicial: {section_data.get('start', 0)} €",
+            f"Entradas dinheiro: {section_data.get('inCash', 0)} €",
+            f"Entradas multibanco: {section_data.get('inMb', 0)} €",
+            f"Entradas MBWay: {section_data.get('inMbway', 0)} €",
+            f"Outras entradas: {section_data.get('inOther', 0)} €",
+            f"Saídas: {section_data.get('out', 0)} €",
+            f"Total notas: {summary['notes_total']} €",
+            f"Total moedas: {summary['coins_total']} €",
+            f"Caixa real: {summary['real']} €",
+            f"Saldo teórico: {summary['expected']} €",
+            f"Diferença: {summary['diff']} €",
+            f"Estado: {summary['status']}",
+            f"Observações: {section_data.get('obs', '')}"
+        ]
+
+        for line in lines:
+            y = wrap_pdf_text(c, line, 50, y, 95, 14)
+
+        y -= 8
+        c.line(40, y, width - 40, y)
+        y -= 18
+
+    c.save()
+    mem.seek(0)
+
+    with open(filepath, 'wb') as f:
+        f.write(mem.getvalue())
+
+    mem.seek(0)
+    return send_file(mem, as_attachment=True, download_name=filename, mimetype='application/pdf')
 
 
 @app.route('/<path:path>')
