@@ -102,6 +102,8 @@
     .btn{background:var(--brand);color:#fff}
     .btn:hover{background:var(--brand-dark)}
     .btn.sec{background:#e2e8f0;color:#172033}
+    .btn.ok{background:#166534;color:#fff}
+    .btn.bad{background:#991b1b;color:#fff}
     .app{display:grid;grid-template-columns:250px 1fr;min-height:100vh}
     .side{background:#111827;color:#fff;padding:20px}
     .side .brand{color:#fff;font-size:24px;text-align:left;margin-bottom:0}
@@ -373,6 +375,7 @@
         </div>
 
         <div class="card pad section">
+          <h3>Pendentes</h3>
           <table id="tblBuy">
             <thead>
               <tr>
@@ -385,6 +388,28 @@
                 <th>Unidade</th>
                 <th>Prioridade</th>
                 <th>Estado</th>
+                <th>Ações</th>
+              </tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </div>
+
+        <div class="card pad section">
+          <h3>Comprados</h3>
+          <table id="tblBuyDone">
+            <thead>
+              <tr>
+                <th>Cód. Artigo</th>
+                <th>Artigo</th>
+                <th>Cód. Fornecedor</th>
+                <th>Fornecedor</th>
+                <th>Qtd. Comprar</th>
+                <th>Qtd. Comprada</th>
+                <th>Unidade</th>
+                <th>Prioridade</th>
+                <th>Estado</th>
+                <th>Ações</th>
               </tr>
             </thead>
             <tbody></tbody>
@@ -763,6 +788,32 @@ async function addBuyItem(){
   renderAll();
 }
 
+async function completePurchase(id){
+  const ok = confirm('Marcar este artigo como comprado?');
+  if(!ok) return;
+
+  const res = await fetch(`/api/purchases/${id}/complete`, { method: 'POST' });
+  if(!res.ok){
+    alert('Erro ao concluir artigo.');
+    return;
+  }
+  await loadServerData();
+  renderAll();
+}
+
+async function deletePurchase(id){
+  const ok = confirm('Apagar este artigo da lista?');
+  if(!ok) return;
+
+  const res = await fetch(`/api/purchases/${id}`, { method: 'DELETE' });
+  if(!res.ok){
+    alert('Erro ao apagar artigo.');
+    return;
+  }
+  await loadServerData();
+  renderAll();
+}
+
 async function addClient(){
   const c = {
     name: document.getElementById('cliName').value.trim(),
@@ -797,7 +848,7 @@ function renderDashboardCash(talho, cong){
   document.getElementById('kReal').textContent = euro(talho.real);
   document.getElementById('kTeorico').textContent = euro(cong.real);
   document.getElementById('kDiff').textContent = euro(talho.diff);
-  document.getElementById('kPend').textContent = buyItems.length;
+  document.getElementById('kPend').textContent = buyItems.filter(i => Number(i.qty_bought || 0) < Number(i.qty_to_buy || 0)).length;
 
   document.getElementById('dRealTalho').textContent = euro(talho.real);
   document.getElementById('dExpectedTalho').textContent = euro(talho.expected);
@@ -805,7 +856,7 @@ function renderDashboardCash(talho, cong){
   document.getElementById('dRealCong').textContent = euro(cong.real);
   document.getElementById('dExpectedCong').textContent = euro(cong.expected);
   document.getElementById('dDiffCong').textContent = euro(cong.diff);
-  document.getElementById('dCompras').textContent = String(buyItems.length);
+  document.getElementById('dCompras').textContent = String(buyItems.filter(i => Number(i.qty_bought || 0) < Number(i.qty_to_buy || 0)).length);
 }
 
 function renderStock(){
@@ -819,17 +870,21 @@ function renderStock(){
 }
 
 function renderBuyItems(){
-  const tb = document.querySelector('#tblBuy tbody');
-  tb.innerHTML = '';
-  buyItems.forEach(o=>{
+  const pendingTb = document.querySelector('#tblBuy tbody');
+  const doneTb = document.querySelector('#tblBuyDone tbody');
+  pendingTb.innerHTML = '';
+  doneTb.innerHTML = '';
+
+  const pending = buyItems.filter(o => Number(o.qty_bought || 0) < Number(o.qty_to_buy || 0));
+  const done = buyItems.filter(o => Number(o.qty_bought || 0) >= Number(o.qty_to_buy || 0));
+
+  pending.forEach(o=>{
     const cls = o.priority === 'Alta' ? 'bad' : (o.priority === 'Média' ? 'warn' : 'ok');
     const estado = Number(o.qty_bought || 0) <= 0
       ? '<span class="badge bad">Por comprar</span>'
-      : Number(o.qty_bought || 0) < Number(o.qty_to_buy || 0)
-      ? '<span class="badge warn">Parcial</span>'
-      : '<span class="badge ok">Comprado</span>';
+      : '<span class="badge warn">Parcial</span>';
 
-    tb.innerHTML += `<tr>
+    pendingTb.innerHTML += `<tr>
       <td>${o.code || ''}</td>
       <td>${o.name}</td>
       <td>${o.supplier_code || ''}</td>
@@ -839,9 +894,39 @@ function renderBuyItems(){
       <td>${o.unit || ''}</td>
       <td><span class="badge ${cls}">${o.priority}</span></td>
       <td>${estado}</td>
+      <td>
+        <div class="actions">
+          <button class="btn ok" onclick="completePurchase(${o.id})">Concluir</button>
+          <button class="btn bad" onclick="deletePurchase(${o.id})">Apagar</button>
+        </div>
+      </td>
     </tr>`;
   });
-  if(!tb.innerHTML) tb.innerHTML = '<tr><td colspan="9" class="muted">Sem artigos em falta.</td></tr>';
+
+  done.forEach(o=>{
+    const cls = o.priority === 'Alta' ? 'bad' : (o.priority === 'Média' ? 'warn' : 'ok');
+    const estado = '<span class="badge ok">Comprado</span>';
+
+    doneTb.innerHTML += `<tr>
+      <td>${o.code || ''}</td>
+      <td>${o.name}</td>
+      <td>${o.supplier_code || ''}</td>
+      <td>${o.supplier || ''}</td>
+      <td>${o.qty_to_buy}</td>
+      <td>${o.qty_bought}</td>
+      <td>${o.unit || ''}</td>
+      <td><span class="badge ${cls}">${o.priority}</span></td>
+      <td>${estado}</td>
+      <td>
+        <div class="actions">
+          <button class="btn bad" onclick="deletePurchase(${o.id})">Apagar</button>
+        </div>
+      </td>
+    </tr>`;
+  });
+
+  if(!pendingTb.innerHTML) pendingTb.innerHTML = '<tr><td colspan="10" class="muted">Sem artigos pendentes.</td></tr>';
+  if(!doneTb.innerHTML) doneTb.innerHTML = '<tr><td colspan="10" class="muted">Sem artigos comprados.</td></tr>';
 }
 
 function renderClients(){
