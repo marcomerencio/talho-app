@@ -45,6 +45,9 @@ DEFAULT_DB = {
             'notes': {'500': 0, '200': 0, '100': 0, '50': 0, '20': 0, '10': 0, '5': 0},
             'coins': {'2': 0, '1': 0, '0.5': 0, '0.2': 0, '0.1': 0, '0.05': 0, '0.02': 0, '0.01': 0}
         }
+    },
+    'next_ids': {
+        'purchase': 1
     }
 }
 
@@ -66,6 +69,14 @@ def load_db() -> dict:
     for key, value in DEFAULT_DB.items():
         if key not in data:
             data[key] = value
+            changed = True
+
+    if 'next_ids' not in data:
+        data['next_ids'] = DEFAULT_DB['next_ids']
+        changed = True
+    else:
+        if 'purchase' not in data['next_ids']:
+            data['next_ids']['purchase'] = 1
             changed = True
 
     if changed:
@@ -241,6 +252,7 @@ def api_purchases():
 
     payload = request.get_json(silent=True) or {}
     item = {
+        'id': data['next_ids']['purchase'],
         'code': str(payload.get('code', '')).strip(),
         'name': str(payload.get('name', '')).strip(),
         'supplier_code': str(payload.get('supplier_code', '')).strip(),
@@ -254,9 +266,44 @@ def api_purchases():
     if not item['code'] or not item['name']:
         return jsonify({'error': 'Artigo obrigatório'}), 400
 
+    data['next_ids']['purchase'] += 1
     data['purchases'].append(item)
     save_db(data)
     return jsonify(item), 201
+
+
+@app.route('/api/purchases/<int:item_id>/complete', methods=['POST'])
+def api_purchase_complete(item_id: int):
+    auth = require_login()
+    if auth:
+        return auth
+
+    data = load_db()
+
+    for item in data.get('purchases', []):
+        if item.get('id') == item_id:
+            item['qty_bought'] = item.get('qty_to_buy', 0)
+            save_db(data)
+            return jsonify({'ok': True, 'item': item}), 200
+
+    return jsonify({'error': 'Artigo não encontrado'}), 404
+
+
+@app.route('/api/purchases/<int:item_id>', methods=['DELETE'])
+def api_purchase_delete(item_id: int):
+    auth = require_login()
+    if auth:
+        return auth
+
+    data = load_db()
+    before = len(data.get('purchases', []))
+    data['purchases'] = [p for p in data.get('purchases', []) if p.get('id') != item_id]
+
+    if len(data['purchases']) == before:
+        return jsonify({'error': 'Artigo não encontrado'}), 404
+
+    save_db(data)
+    return jsonify({'ok': True}), 200
 
 
 @app.route('/api/clients', methods=['GET', 'POST'])
