@@ -13,7 +13,7 @@ DATA_DIR = os.path.join(BASE_DIR, "data")
 DB_PATH = os.path.join(DATA_DIR, "db.json")
 EXCEL_PATH = os.path.join(DATA_DIR, "base_sage.xlsx")
 
-app = Flask(__name__, static_folder=STATIC_DIR, static_url_path='')
+app = Flask(__name__, static_folder=STATIC_DIR, static_url_path="")
 app.secret_key = os.environ.get("SECRET_KEY", "grupobolhao-secret")
 APP_PIN = os.environ.get("APP_PIN", "1234")
 
@@ -52,27 +52,41 @@ DEFAULT_DB = {
 def ensure_data():
     os.makedirs(DATA_DIR, exist_ok=True)
     if not os.path.exists(DB_PATH):
-        with open(DB_PATH, "w", encoding="utf-8") as f:
-            json.dump(DEFAULT_DB, f, ensure_ascii=False, indent=2)
+        save_db(DEFAULT_DB)
+
+
+def save_db(db):
+    os.makedirs(DATA_DIR, exist_ok=True)
+    with open(DB_PATH, "w", encoding="utf-8") as f:
+        json.dump(db, f, ensure_ascii=False, indent=2)
 
 
 def load_db():
     ensure_data()
-    with open(DB_PATH, "r", encoding="utf-8") as f:
-        db = json.load(f)
+
+    if not os.path.exists(DB_PATH):
+        save_db(DEFAULT_DB)
+        return json.loads(json.dumps(DEFAULT_DB))
+
+    try:
+        with open(DB_PATH, "r", encoding="utf-8") as f:
+            db = json.load(f)
+    except Exception:
+        save_db(DEFAULT_DB)
+        return json.loads(json.dumps(DEFAULT_DB))
 
     changed = False
 
-    if "purchases" not in db:
+    if "purchases" not in db or not isinstance(db["purchases"], list):
         db["purchases"] = []
         changed = True
 
-    if "cash_state" not in db:
+    if "cash_state" not in db or not isinstance(db["cash_state"], dict):
         db["cash_state"] = DEFAULT_DB["cash_state"]
         changed = True
 
-    if "next_purchase_id" not in db:
-        existing_ids = [item.get("id", 0) for item in db.get("purchases", [])]
+    if "next_purchase_id" not in db or not isinstance(db["next_purchase_id"], int):
+        existing_ids = [item.get("id", 0) for item in db.get("purchases", []) if isinstance(item, dict)]
         db["next_purchase_id"] = (max(existing_ids) + 1) if existing_ids else 1
         changed = True
 
@@ -80,12 +94,6 @@ def load_db():
         save_db(db)
 
     return db
-
-
-def save_db(db):
-    os.makedirs(DATA_DIR, exist_ok=True)
-    with open(DB_PATH, "w", encoding="utf-8") as f:
-        json.dump(db, f, ensure_ascii=False, indent=2)
 
 
 def require_login():
@@ -119,7 +127,6 @@ def load_excel_master():
         return {"articles": [], "suppliers": []}
 
     wb = load_workbook(EXCEL_PATH, data_only=True)
-
     articles = []
     suppliers = []
 
@@ -136,10 +143,7 @@ def load_excel_master():
                 code = str(item.get("codigo", "") or "").strip()
                 name = str(item.get("nome", "") or "").strip()
                 if code and name:
-                    articles.append({
-                        "code": code,
-                        "name": name
-                    })
+                    articles.append({"code": code, "name": name})
 
     if fornecedores_sheet:
         ws = wb[fornecedores_sheet]
@@ -151,10 +155,7 @@ def load_excel_master():
                 code = str(item.get("codigo", "") or "").strip()
                 name = str(item.get("nome", "") or "").strip()
                 if code and name:
-                    suppliers.append({
-                        "code": code,
-                        "name": name
-                    })
+                    suppliers.append({"code": code, "name": name})
 
     return {"articles": articles, "suppliers": suppliers}
 
@@ -174,14 +175,8 @@ def calc_cash_summary(section_data):
     notes_total = 0.0
     coins_total = 0.0
 
-    note_values = {
-        "500": 500, "200": 200, "100": 100, "50": 50,
-        "20": 20, "10": 10, "5": 5
-    }
-    coin_values = {
-        "2": 2, "1": 1, "0.5": 0.5, "0.2": 0.2,
-        "0.1": 0.1, "0.05": 0.05, "0.02": 0.02, "0.01": 0.01
-    }
+    note_values = {"500": 500, "200": 200, "100": 100, "50": 50, "20": 20, "10": 10, "5": 5}
+    coin_values = {"2": 2, "1": 1, "0.5": 0.5, "0.2": 0.2, "0.1": 0.1, "0.05": 0.05, "0.02": 0.02, "0.01": 0.01}
 
     for key, value in note_values.items():
         notes_total += parse_amount(section_data.get("notes", {}).get(key, 0)) * value
@@ -276,12 +271,12 @@ def api_purchases():
     db = load_db()
 
     if request.method == "GET":
-        return jsonify(db["purchases"])
+        return jsonify(db.get("purchases", []))
 
     data = request.get_json(silent=True) or {}
 
     item = {
-        "id": db["next_purchase_id"],
+        "id": db.get("next_purchase_id", 1),
         "code": str(data.get("code", "")).strip(),
         "name": str(data.get("name", "")).strip(),
         "supplier_code": str(data.get("supplier_code", "")).strip(),
@@ -293,7 +288,7 @@ def api_purchases():
     }
 
     db["purchases"].append(item)
-    db["next_purchase_id"] += 1
+    db["next_purchase_id"] = db.get("next_purchase_id", 1) + 1
     save_db(db)
 
     return jsonify({"ok": True, "item": item})
